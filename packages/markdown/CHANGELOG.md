@@ -1,5 +1,29 @@
 # @platejs/markdown
 
+## 49.1.9
+
+### Patch Changes
+
+- [#4493](https://github.com/udecode/plate/pull/4493) by [@felixfeng33](https://github.com/felixfeng33) –
+  - Fixed markdown serialization of indented lists when using custom paragraph node types. The serializer now correctly identifies custom paragraph nodes instead of only looking for the default 'p' type.
+
+## 49.1.8
+
+### Patch Changes
+
+- [#4486](https://github.com/udecode/plate/pull/4486) by [@felixfeng33](https://github.com/felixfeng33) – Fix custom plugin key handling in markdown serialization/deserialization. Ensures plugin keys are properly resolved throughout the conversion process for custom plugin configurations.
+
+## 49.1.6
+
+### Patch Changes
+
+- [#4468](https://github.com/udecode/plate/pull/4468) by [@felixfeng33](https://github.com/felixfeng33) – Add support for [display text](mention:id) markdown format for mentions
+
+  - Updated `remarkMention` plugin to only support the `[display text](mention:id)` format
+  - Dropped support for legacy `@username` format
+  - Mentions now require an explicit display text and ID structure
+  - Enables full names, spaces, and special characters in mention display text
+
 ## 49.0.17
 
 ### Patch Changes

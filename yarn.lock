@@ -3373,7 +3373,7 @@ __metadata:
   resolution: "@platejs/ai@workspace:packages/ai"
   dependencies:
     "@platejs/combobox": "npm:49.0.0"
-    "@platejs/markdown": "npm:49.0.17"
+    "@platejs/markdown": "npm:49.1.9"
     "@platejs/selection": "npm:49.0.15"
     ai: "npm:4.3.16"
     lodash: "npm:^4.17.21"
@@ -3725,7 +3725,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@platejs/markdown@npm:49.0.17, @platejs/markdown@workspace:^, @platejs/markdown@workspace:packages/markdown":
+"@platejs/markdown@npm:49.1.9, @platejs/markdown@workspace:^, @platejs/markdown@workspace:packages/markdown":
   version: 0.0.0-use.local
   resolution: "@platejs/markdown@workspace:packages/markdown"
   dependencies:

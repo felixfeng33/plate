@@ -50,6 +50,7 @@
     "@platejs/autoformat": "workspace:^",
     "@platejs/basic-nodes": "workspace:^",
     "@platejs/basic-styles": "workspace:^",
+    "@platejs/yjs": "workspace:^",
     "@platejs/callout": "workspace:^",
     "@platejs/caption": "workspace:^",
     "@platejs/code-block": "workspace:^",

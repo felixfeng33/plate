@@ -3,7 +3,8 @@ import {
   type TElement,
   type TText,
   getPluginKey,
-  getPluginKeys,
+  getPluginType,
+  KEYS,
   TextApi,
 } from 'platejs';
 
@@ -49,12 +50,14 @@ export const convertNodesSerialize = (
         continue;
       }
 
-      if (n?.type === 'p' && 'listStyleType' in n) {
+      const pType = getPluginType(options.editor!, KEYS.p) ?? KEYS.p;
+
+      if (n?.type === pType && 'listStyleType' in n) {
         listBlock.push(n);
 
         const next = nodes[i + 1] as TElement;
         const isNextIndent =
-          next && next.type === 'p' && 'listStyleType' in next;
+          next && next.type === pType && 'listStyleType' in next;
 
         if (!isNextIndent) {
           mdastNodes.push(listToMdastTree(listBlock as any, options));
@@ -74,22 +77,15 @@ export const convertNodesSerialize = (
 };
 
 export const buildMdastNode = (node: any, options: SerializeMdOptions) => {
-  let key = getPluginKey(options.editor!, node.type) ?? node.type;
+  const editor = options.editor!;
 
-  if (
-    getPluginKeys(options.editor!, [
-      'h1',
-      'h2',
-      'h3',
-      'h4',
-      'h5',
-      'h6',
-    ]).includes(node.type)
-  ) {
+  let key = getPluginKey(editor, node.type) ?? node.type;
+
+  if (KEYS.heading.includes(key)) {
     key = 'heading';
   }
 
-  if (['ol', 'ul'].includes(node.type)) {
+  if (key === KEYS.olClassic || key === KEYS.ulClassic) {
     key = 'list';
   }
 
