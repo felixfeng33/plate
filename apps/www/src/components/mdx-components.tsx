@@ -6,7 +6,6 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cva } from 'class-variance-authority';
 import { Provider } from 'jotai';
 import { CircleCheck, CircleX, Info, TriangleAlert } from 'lucide-react';
-import { useMDXComponent } from 'next-contentlayer2/hooks';
 import Image from 'next/image';
 
 import { Card, Cards } from '@/components/cards';
@@ -215,21 +214,19 @@ export const components = {
 };
 
 export function Mdx({
-  code,
+  children,
   packageInfo,
 }: {
-  code: string;
+  children: React.ReactNode;
   packageInfo?: {
     gzip: string | null;
   };
 }) {
-  const Component = useMDXComponent(code);
-
   return (
     <div className="typography">
       <Provider>
         <HydrateAtoms initialValues={[[packageInfoAtom, packageInfo]]}>
-          <Component components={components as any} />
+          {children}
         </HydrateAtoms>
       </Provider>
     </div>

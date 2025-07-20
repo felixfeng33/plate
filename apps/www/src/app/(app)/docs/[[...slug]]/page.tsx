@@ -3,14 +3,11 @@ import type { RegistryItem } from 'shadcn/registry';
 
 import type { Metadata } from 'next';
 
-import { allDocs } from 'contentlayer/generated';
 import { notFound } from 'next/navigation';
 
 import { DocContent } from '@/app/(app)/docs/[[...slug]]/doc-content';
 import { ComponentInstallation } from '@/components/component-installation';
 import { ComponentPreview } from '@/components/component-preview';
-import { Mdx } from '@/components/mdx-components';
-import { docsMap } from '@/config/docs';
 import { slugToCategory } from '@/config/docs-utils';
 import { siteConfig } from '@/config/site';
 import { absoluteUrl } from '@/lib/absoluteUrl';
@@ -22,7 +19,6 @@ import {
 } from '@/lib/registry-cache';
 import { getRegistryTitle } from '@/lib/registry-utils';
 import { getAllDependencies, getAllFiles } from '@/lib/rehype-utils';
-import { getTableOfContents } from '@/lib/toc';
 import { registry } from '@/registry/registry';
 import { registryExamples } from '@/registry/registry-examples';
 import { proExamples } from '@/registry/registry-pro';
@@ -38,45 +34,8 @@ interface DocPageProps {
 }
 
 async function getDocFromParams({ params, searchParams }: DocPageProps) {
-  const locale = (await searchParams).locale;
-  const slugParam = (await params).slug;
-
-  let slug = slugParam?.join('/') || '';
-
-  // For Chinese docs, look for .cn.mdx files
-  if (locale === 'cn') {
-    // First try to find the Chinese version with .cn.mdx
-    const cnDoc = allDocs.find((doc) => {
-      return (
-        doc.slugAsParams === `docs/${slug || 'index'}.cn` &&
-        doc._raw.sourceFileName?.endsWith('.cn.mdx')
-      );
-    });
-
-    if (cnDoc) {
-      const path = slugParam?.join('/') || '';
-      cnDoc.slug = '/docs' + (path ? '/' + path : '') + '?locale=cn';
-      return cnDoc;
-    }
-  }
-
-  // Default behavior for non-Chinese or fallback
-  slug = `docs${slug ? '/' + slug : ''}`;
-  const doc = allDocs.find((doc) => doc.slugAsParams === slug);
-
-  if (!doc) {
-    return null;
-  }
-
-  const path = slugParam?.join('/') || '';
-  doc.slug = '/docs' + (path ? '/' + path : '');
-
-  // Only add locale param for Chinese
-  if (locale === 'cn') {
-    doc.slug += `?locale=cn`;
-  }
-
-  return doc;
+  // Removed contentlayer dependency - returning null
+  return null;
 }
 
 export async function generateMetadata({
@@ -88,11 +47,9 @@ export async function generateMetadata({
   let description: string | undefined;
   let slug: string;
 
-  if (doc) {
-    title = doc.title;
-    description = doc.description;
-    slug = doc.slug;
-  } else {
+  // Since contentlayer was removed, doc is always null
+  // Processing fallback logic for registry items
+  {
     const slugParam = (await params).slug;
     const category = slugToCategory(slugParam);
     let docName = slugParam?.at(-1);
@@ -149,19 +106,8 @@ export async function generateMetadata({
 const registryNames = new Set(registry.items.map((item) => item.name));
 
 export function generateStaticParams() {
-  const docs = allDocs
-    .filter((doc) => {
-      // Include all non-Chinese docs and Chinese docs ending with .cn.mdx
-      return (
-        !doc._raw.sourceFileName?.endsWith('.cn.mdx') ||
-        doc.slugAsParams.startsWith('docs/')
-      );
-    })
-    .map((doc) => ({
-      slug: doc.slugAsParams.split('/'),
-    }));
-
-  return docs;
+  // Removed contentlayer dependency - returning empty array
+  return [];
 }
 
 export default async function DocPage(props: DocPageProps) {
@@ -253,17 +199,8 @@ export default async function DocPage(props: DocPageProps) {
       </DocContent>
     );
   }
-  if (!doc.description) {
-    doc.description = docsMap[doc.slug]?.description;
-  }
-
-  const toc = await getTableOfContents(doc.body.raw);
-
-  return (
-    <DocContent category={category as any} doc={doc} toc={toc}>
-      <Mdx code={doc.body.code} packageInfo={packageInfo} />
-    </DocContent>
-  );
+  // Removed contentlayer dependency
+  return null;
 }
 
 function getRegistryDocs({
