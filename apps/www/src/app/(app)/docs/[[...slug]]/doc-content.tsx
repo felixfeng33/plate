@@ -3,7 +3,6 @@
 import React from 'react';
 
 import type { TocItem } from '@/lib/toc';
-import type { Doc } from 'contentlayer/generated';
 import type { RegistryItem } from 'shadcn/registry';
 
 import { IconArrowLeft, IconArrowRight } from '@tabler/icons-react';
@@ -58,7 +57,15 @@ export function DocContent({
 }: {
   category: 'api' | 'component' | 'example' | 'guide' | 'plugin';
   children: React.ReactNode;
-  doc: Partial<Doc>;
+  doc: {
+    body?: { raw: string };
+    description?: string;
+    docs?: any[];
+    links?: any;
+    slug?: string;
+    title?: string;
+    toc?: boolean;
+  };
   toc?: TocItem[];
 } & Partial<RegistryItem>) {
   const title = doc?.title ?? getRegistryTitle(file);
@@ -71,7 +78,7 @@ export function DocContent({
   const items = useDedupeNavItems(categoryNavGroups[category]);
 
   // v3
-  const neighbours = getPagerForDoc(doc as any);
+  const neighbours = doc?.slug ? getPagerForDoc({ slug: doc.slug }) : { next: null, previous: null };
 
   return (
     <div className="relative flex items-stretch lg:w-full" data-slot="docs">

@@ -1,5 +1,3 @@
-import type { Doc } from 'contentlayer/generated';
-
 import type { Metadata } from 'next';
 
 import { AutoformatPlugin } from '@platejs/autoformat';
@@ -43,11 +41,10 @@ export const metadata: Metadata = {
 };
 
 export default function RSCPage() {
-  const mockDoc: Partial<Doc> = {
+  const mockDoc = {
     description: 'Server-side rendering.',
+    slug: '/docs/examples/server-side',
     title: 'Server-Side',
-    // name: 'server-side',
-    // ... other necessary properties
   };
 
   const editor = createSlateEditor({
