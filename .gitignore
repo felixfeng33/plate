@@ -129,3 +129,4 @@ packages/plate/docs/
 /playwright/.cache/
 .turbo
 .vercel
+apps/www/.source

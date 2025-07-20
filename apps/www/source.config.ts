@@ -1,5 +1,10 @@
-import { defineDocs } from 'fumadocs-mdx/config';
+import { defineDocs, defineConfig } from 'fumadocs-mdx/config';
 import { z } from 'zod';
+
+export default defineConfig({
+  generateManifest: true,
+  lastModifiedTime: 'git',
+});
 
 export const blogs = defineDocs({
   dir: './content/blogs',

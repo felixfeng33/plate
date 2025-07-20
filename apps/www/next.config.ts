@@ -2,7 +2,12 @@ import type { NextConfig } from 'next';
 
 import { createMDX } from 'fumadocs-mdx/next';
 import { globSync } from 'glob';
-const withMDX = createMDX();
+const withMDX = createMDX({
+  mdxOptions: {
+    // Disable development features in production build to speed up
+    development: process.env.NODE_ENV === 'development',
+  },
+});
 
 const nextConfig = async (phase: string) => {
   const config: NextConfig = {
