@@ -1,6 +1,6 @@
 'use client';
 
-import React, { type ReactNode, createContext, useState } from 'react';
+import React, { type ReactNode, createContext, useEffect, useState } from 'react';
 
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -72,6 +72,11 @@ export function APIItem({
   value,
 }: Item) {
   const { listType, name: contextName } = React.useContext(APIContext);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const id = contextName
     ? `${contextName}-${listType ? `${listTypeToId[listType]}-` : ''}${name}`
@@ -79,6 +84,42 @@ export function APIItem({
       .replace(/[^\da-z]+/g, '-')
       .replace(/^-|-$/g, '')
     : undefined;
+
+  // During SSR or when not mounted, render a simpler version
+  if (!mounted) {
+    return (
+      <li id={id} className="scroll-mt-20 py-4">
+        <h4 className="relative py-2 text-start leading-none font-semibold tracking-tight">
+          {id && (
+            <a
+              className={cn(
+                'opacity-0 hover:opacity-100'
+              )}
+              onClick={(e) => e.stopPropagation()}
+              href={`#${id}`}
+            >
+              <div className="absolute top-2 -left-5 pr-1 leading-none">
+                <Icons.pragma className="size-4 text-muted-foreground" />
+              </div>
+            </a>
+          )}
+          <span className="font-mono text-sm leading-none font-semibold">
+            {name}
+          </span>
+          {required && (
+            <span className="font-mono text-xs leading-none text-orange-500">
+              {' '}
+              REQUIRED
+            </span>
+          )}
+          <span className="text-left font-mono text-sm leading-none font-medium text-muted-foreground">
+            {!required && optional && ' optional'} {type}
+          </span>
+        </h4>
+        <div className="pt-2 pb-0">{children}</div>
+      </li>
+    );
+  }
 
   return (
     <AccordionItem className="border-none select-text" value={value ?? name}>
@@ -217,6 +258,11 @@ export function APIList({
 
   const [values, setValues] = useState<string[]>(defaultValues);
   const [expanded, setExpanded] = useState(!collapsed);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (listType === 'returns' && !childCount) return null;
 
@@ -290,7 +336,7 @@ export function APIList({
               {/* {listType !== 'returns' && <Separator />} */}
               <Separator />
 
-              {hasItems ? (
+              {hasItems && mounted ? (
                 <Accordion
                   className="w-full space-y-2 py-4"
                   value={values}
@@ -304,6 +350,12 @@ export function APIList({
                     });
                   })}
                 </Accordion>
+              ) : hasItems && !mounted ? (
+                <div className="py-4">
+                  {React.Children.map(children, (child, i) => {
+                    return child;
+                  })}
+                </div>
               ) : childCount > 0 ? (
                 children
               ) : (

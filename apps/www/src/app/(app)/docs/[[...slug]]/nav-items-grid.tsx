@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 
 import type { SidebarNavItem } from '@/types/nav';
 
@@ -71,7 +71,7 @@ const filterItems = (
   }, []);
 };
 
-export function NavItemCard({
+function NavItemCardInner({
   category,
   item,
 }: {
@@ -104,6 +104,30 @@ export function NavItemCard({
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+export function NavItemCard({
+  category,
+  item,
+}: {
+  category: string;
+  item: SidebarNavItem;
+}) {
+  return (
+    <Suspense fallback={
+      <Card className="h-full bg-muted/30 p-0">
+        <CardContent className="flex gap-2 p-2">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-lg border bg-white animate-pulse" />
+          <div className="space-y-0 flex-1">
+            <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+            <div className="h-3 bg-muted animate-pulse rounded w-1/2 mt-1" />
+          </div>
+        </CardContent>
+      </Card>
+    }>
+      <NavItemCardInner category={category} item={item} />
+    </Suspense>
   );
 }
 

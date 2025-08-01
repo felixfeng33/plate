@@ -97,12 +97,12 @@ export async function highlightCode(code: string, language = 'tsx') {
             type: 'root',
             children: [
               {
-                type: 'element',
-                tagName: 'figure',
+                children: node.children as any,
                 properties: {
                   'data-rehype-pretty-code-figure': '',
                 },
-                children: node.children as any,
+                tagName: 'figure',
+                type: 'element',
               },
             ],
           } as any;

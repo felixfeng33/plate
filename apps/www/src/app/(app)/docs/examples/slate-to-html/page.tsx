@@ -1,8 +1,10 @@
+import { Suspense } from 'react';
+
 import { DocContent } from '@/app/(app)/docs/[[...slug]]/doc-content';
 import { BlockDisplay } from '@/components/block-display';
 import { exampleNavMap } from '@/config/docs-examples';
 
-export default function SlateToHtmlPage() {
+function SlateToHtmlContent() {
   return (
     <DocContent
       category="example"
@@ -16,5 +18,13 @@ export default function SlateToHtmlPage() {
         }}
       />
     </DocContent>
+  );
+}
+
+export default function SlateToHtmlPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SlateToHtmlContent />
+    </Suspense>
   );
 }

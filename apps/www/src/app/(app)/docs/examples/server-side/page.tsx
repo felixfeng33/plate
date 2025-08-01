@@ -2,6 +2,8 @@ import type { Doc } from '@/types/doc';
 
 import type { Metadata } from 'next';
 
+import { Suspense } from 'react';
+
 import { AutoformatPlugin } from '@platejs/autoformat';
 import { DocxPlugin } from '@platejs/docx';
 import {
@@ -42,7 +44,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RSCPage() {
+function RSCPageContent() {
   const mockDoc: Partial<Doc> = {
     description: 'Server-side rendering.',
     title: 'Server-Side',
@@ -94,5 +96,13 @@ export default function RSCPage() {
 
       <Markdown className="rounded-sm border p-4 py-6">{md}</Markdown>
     </DocContent>
+  );
+}
+
+export default function RSCPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <RSCPageContent />
+    </Suspense>
   );
 }
