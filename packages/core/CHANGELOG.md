@@ -1,5 +1,11 @@
 # @platejs/core
 
+## 53.1.9
+
+### Patch Changes
+
+- [`b0d124f`](https://github.com/udecode/plate/commit/b0d124f794b87b7cb9f177d26723f1bd8c55d26b) by [@felixfeng33](https://github.com/felixfeng33) – Test prepared main-to-next sync PR generation.
+
 ## 53.1.8
 
 ### Patch Changes
