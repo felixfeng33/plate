@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..');
+export const mainToNextSyncBranch = 'sync/main-to-next';
+const newlinePattern = /\r?\n/;
 const shellSafeArgPattern = /^[A-Za-z0-9_./:=@-]+$/;
 const stableVersionPattern = /^\d+\.\d+\.\d+$/;
+const semverPattern = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
 export function getStableVersion(version) {
   const stableVersion = String(version ?? '').split('-')[0];
@@ -42,11 +46,13 @@ export function buildMainToNextSyncPullRequest() {
     body: [
       'Brings stable fixes from `main` into the beta branch.',
       '',
+      'This PR is prepared from `next` by merging `main` into `sync/main-to-next` first. Release metadata conflicts are resolved automatically before the PR opens.',
+      '',
       '**Merge with `Create a merge commit`**. Do not squash or rebase; this preserves the stable fix commits before the next beta cut.',
       '',
-      'If there are conflicts, keep `next` versions for package manifests and changelogs. `next` is ahead of `main` while beta is active.',
+      'If this PR still has conflicts, they are real source conflicts. Package versions, beta pre-release state, and changelog section ordering are handled by automation.',
     ].join('\n'),
-    head: 'main',
+    head: mainToNextSyncBranch,
     title: 'chore: sync main to next [skip release]',
   };
 }
@@ -92,13 +98,16 @@ function runGh(args, { capture = false, dryRun = false } = {}) {
   return run('gh', args, { capture });
 }
 
-function runGit(args, { capture = false, dryRun = false } = {}) {
+function runGit(
+  args,
+  { allowFailure = false, capture = false, dryRun = false } = {}
+) {
   if (dryRun) {
     logDryRun('git', args);
     return '';
   }
 
-  return run('git', args, { capture });
+  return run('git', args, { allowFailure, capture });
 }
 
 function requireRepository(env) {
@@ -109,6 +118,254 @@ function requireRepository(env) {
   }
 
   return repository;
+}
+
+function readGitStage(stage, file) {
+  return runGit(['show', `:${stage}:${file}`], { capture: true });
+}
+
+function writeRepoFile(file, content) {
+  writeFileSync(
+    path.join(repoRoot, file),
+    content.endsWith('\n') ? content : `${content}\n`
+  );
+}
+
+function getUnmergedFiles() {
+  const output = runGit(['diff', '--name-only', '--diff-filter=U'], {
+    capture: true,
+  });
+
+  return output.split(newlinePattern).filter(Boolean);
+}
+
+function isPackageManifest(file) {
+  return file === 'package.json' || file.endsWith('/package.json');
+}
+
+function isChangelog(file) {
+  return file.endsWith('/CHANGELOG.md') || file === 'CHANGELOG.md';
+}
+
+function normalizePackageForVersionOnlyCompare(packageJson) {
+  return JSON.stringify({
+    ...packageJson,
+    version: '__plate_sync_version__',
+  });
+}
+
+export function resolvePackageManifestForMainToNextSync({ ours, theirs }) {
+  const oursJson = JSON.parse(ours);
+  const theirsJson = JSON.parse(theirs);
+
+  if (
+    typeof oursJson.version !== 'string' ||
+    typeof theirsJson.version !== 'string'
+  ) {
+    throw new Error('Package manifest conflict does not include versions.');
+  }
+
+  if (
+    normalizePackageForVersionOnlyCompare(oursJson) !==
+    normalizePackageForVersionOnlyCompare(theirsJson)
+  ) {
+    throw new Error(
+      'Package manifest conflict changed fields other than version.'
+    );
+  }
+
+  return `${JSON.stringify(oursJson, null, 2)}\n`;
+}
+
+function parseSemver(version) {
+  const match = version.match(semverPattern);
+
+  if (!match) return null;
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+    pre: match[4] ?? '',
+  };
+}
+
+function comparePrereleaseDesc(a, b) {
+  const aParts = a.split('.');
+  const bParts = b.split('.');
+  const length = Math.max(aParts.length, bParts.length);
+
+  for (let index = 0; index < length; index++) {
+    const aPart = aParts[index];
+    const bPart = bParts[index];
+
+    if (aPart === bPart) continue;
+    if (aPart === undefined) return 1;
+    if (bPart === undefined) return -1;
+
+    const aNumber = Number(aPart);
+    const bNumber = Number(bPart);
+    const bothNumeric = Number.isInteger(aNumber) && Number.isInteger(bNumber);
+
+    if (bothNumeric) return bNumber - aNumber;
+
+    return bPart.localeCompare(aPart);
+  }
+
+  return 0;
+}
+
+function compareChangelogSections(a, b) {
+  const aSemver = parseSemver(a.version);
+  const bSemver = parseSemver(b.version);
+
+  if (aSemver && bSemver) {
+    for (const key of ['major', 'minor', 'patch']) {
+      if (aSemver[key] !== bSemver[key]) return bSemver[key] - aSemver[key];
+    }
+
+    if (aSemver.pre && !bSemver.pre) return -1;
+    if (!aSemver.pre && bSemver.pre) return 1;
+    if (aSemver.pre && bSemver.pre) {
+      return comparePrereleaseDesc(aSemver.pre, bSemver.pre);
+    }
+
+    return 0;
+  }
+
+  if (aSemver) return -1;
+  if (bSemver) return 1;
+
+  return a.index - b.index;
+}
+
+function parseChangelog(content) {
+  const normalized = content.replace(/\r\n/g, '\n');
+  const sectionMatches = [...normalized.matchAll(/^##\s+(.+?)\s*$/gm)];
+
+  if (sectionMatches.length === 0) {
+    return {
+      header: normalized.trimEnd(),
+      sections: [],
+    };
+  }
+
+  const header = normalized.slice(0, sectionMatches[0].index).trimEnd();
+  const sections = sectionMatches.map((match, index) => {
+    const start = match.index;
+    const end =
+      index + 1 < sectionMatches.length
+        ? sectionMatches[index + 1].index
+        : normalized.length;
+    const version = match[1].trim().replace(/^`|`$/g, '');
+
+    return {
+      index,
+      raw: normalized.slice(start, end).trimEnd(),
+      version,
+    };
+  });
+
+  return { header, sections };
+}
+
+export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
+  const oursChangelog = parseChangelog(ours);
+  const theirsChangelog = parseChangelog(theirs);
+  const sectionsByVersion = new Map();
+
+  for (const section of oursChangelog.sections) {
+    sectionsByVersion.set(section.version, { ...section, source: 'ours' });
+  }
+
+  for (const section of theirsChangelog.sections) {
+    const existing = sectionsByVersion.get(section.version);
+
+    if (!existing) {
+      sectionsByVersion.set(section.version, { ...section, source: 'theirs' });
+      continue;
+    }
+
+    if (!parseSemver(section.version)?.pre) {
+      sectionsByVersion.set(section.version, { ...section, source: 'theirs' });
+    }
+  }
+
+  const sections = [...sectionsByVersion.values()].sort(
+    compareChangelogSections
+  );
+  const header = oursChangelog.header || theirsChangelog.header;
+
+  return `${header}\n\n${sections.map((section) => section.raw).join('\n\n')}\n`;
+}
+
+function resolveMainToNextMetadataConflict(file) {
+  if (isPackageManifest(file)) {
+    writeRepoFile(
+      file,
+      resolvePackageManifestForMainToNextSync({
+        ours: readGitStage(2, file),
+        theirs: readGitStage(3, file),
+      })
+    );
+    runGit(['add', file]);
+    return true;
+  }
+
+  if (file === '.changeset/pre.json') {
+    writeRepoFile(file, readGitStage(2, file));
+    runGit(['add', file]);
+    return true;
+  }
+
+  if (isChangelog(file)) {
+    writeRepoFile(
+      file,
+      mergeChangelogsForMainToNextSync({
+        ours: readGitStage(2, file),
+        theirs: readGitStage(3, file),
+      })
+    );
+    runGit(['add', file]);
+    return true;
+  }
+
+  return false;
+}
+
+function resolveMainToNextMetadataConflicts() {
+  const unmergedFiles = getUnmergedFiles();
+  const unresolvedFiles = [];
+
+  for (const file of unmergedFiles) {
+    try {
+      if (!resolveMainToNextMetadataConflict(file)) {
+        unresolvedFiles.push(file);
+      }
+    } catch (error) {
+      unresolvedFiles.push(`${file} (${error.message})`);
+    }
+  }
+
+  if (unresolvedFiles.length > 0) {
+    throw new Error(
+      [
+        'Manual main -> next sync conflict resolution required:',
+        ...unresolvedFiles.map((file) => `- ${file}`),
+      ].join('\n')
+    );
+  }
+
+  const remainingFiles = getUnmergedFiles();
+
+  if (remainingFiles.length > 0) {
+    throw new Error(
+      [
+        'Manual main -> next sync conflict resolution required:',
+        ...remainingFiles.map((file) => `- ${file}`),
+      ].join('\n')
+    );
+  }
 }
 
 export function createOrUpdatePromotePullRequest({
@@ -186,7 +443,7 @@ export function createOrUpdateMainToNextSyncPullRequest({
   const repository = requireRepository(env);
   const pullRequest = buildMainToNextSyncPullRequest();
 
-  runGit(['fetch', 'origin', 'next'], { dryRun });
+  runGit(['fetch', 'origin', 'main', 'next'], { dryRun });
 
   const aheadText = dryRun
     ? (env.PLATE_SYNC_AHEAD ?? '1')
@@ -203,6 +460,42 @@ export function createOrUpdateMainToNextSyncPullRequest({
     console.log('No new commits to sync from main to next.');
     return { action: 'skipped', ahead };
   }
+
+  runGit(['config', 'user.name', 'github-actions[bot]'], { dryRun });
+  runGit(
+    [
+      'config',
+      'user.email',
+      '41898282+github-actions[bot]@users.noreply.github.com',
+    ],
+    {
+      dryRun,
+    }
+  );
+  runGit(['checkout', '-B', mainToNextSyncBranch, 'origin/next'], { dryRun });
+  runGit(['merge', '--no-ff', '--no-commit', 'origin/main'], {
+    allowFailure: true,
+    dryRun,
+  });
+
+  if (!dryRun) {
+    resolveMainToNextMetadataConflicts();
+  }
+
+  runGit(
+    [
+      'commit',
+      '--allow-empty',
+      '-m',
+      'chore: sync main to next [skip release]',
+    ],
+    {
+      dryRun,
+    }
+  );
+  runGit(['push', 'origin', `HEAD:${mainToNextSyncBranch}`, '--force'], {
+    dryRun,
+  });
 
   const existing = runGh(
     [
