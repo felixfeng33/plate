@@ -239,6 +239,18 @@ test('main to next sync keeps beta changelog sections above stable history', () 
       '',
       '- Existing stable patch.',
       '',
+      '## 1.0.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Existing old stable release.',
+      '',
+      '## 1.0.0-next.61',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing old prerelease.',
+      '',
     ].join('\n'),
     theirs: [
       '# @platejs/core',
@@ -261,16 +273,174 @@ test('main to next sync keeps beta changelog sections above stable history', () 
       '',
       '- Existing stable patch from main.',
       '',
+      '## 1.0.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Existing old stable release from main.',
+      '',
+      '## 1.0.0-next.61',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing old prerelease.',
+      '',
     ].join('\n'),
   });
 
   assert.equal(
     [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
-    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7,53.1.2'
+    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7,53.1.2,1.0.0,1.0.0-next.61'
   );
   assert.match(resolved, /- Main patch\./);
   assert.match(resolved, /- Existing stable patch from main\./);
+  assert.ok(
+    resolved.indexOf('## 1.0.0\n') < resolved.indexOf('## 1.0.0-next.61')
+  );
+  assert.match(resolved, /- Existing old stable release from main\./);
   assert.doesNotMatch(resolved, /<<<<<<<|=======|>>>>>>>/);
+});
+
+test('main to next sync inserts stable changelog sections between existing anchors', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing older stable patch.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch from main.',
+      '',
+      '## 53.1.6',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch released between sync anchors.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing older stable patch from main.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,53.1.8,53.1.6,53.1.2'
+  );
+  assert.match(resolved, /- Main patch released between sync anchors\./);
+  assert.match(resolved, /- Existing synced stable patch from main\./);
+  assert.match(resolved, /- Existing older stable patch from main\./);
+});
+
+test('main to next sync appends stable changelog sections after beta-only history', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 54.0.0-beta.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Beta major.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Previous main patch.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7'
+  );
+});
+
+test('main to next sync keeps stable sections after the last matched anchor', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch from main.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch after the final shared anchor.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,53.1.8,53.1.7'
+  );
+  assert.match(resolved, /- Main patch after the final shared anchor\./);
 });
 
 test('auto-retarget workflow moves non-patch changesets from main to next', async () => {

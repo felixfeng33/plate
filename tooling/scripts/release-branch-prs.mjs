@@ -190,55 +190,6 @@ function parseSemver(version) {
   };
 }
 
-function comparePrereleaseDesc(a, b) {
-  const aParts = a.split('.');
-  const bParts = b.split('.');
-  const length = Math.max(aParts.length, bParts.length);
-
-  for (let index = 0; index < length; index++) {
-    const aPart = aParts[index];
-    const bPart = bParts[index];
-
-    if (aPart === bPart) continue;
-    if (aPart === undefined) return 1;
-    if (bPart === undefined) return -1;
-
-    const aNumber = Number(aPart);
-    const bNumber = Number(bPart);
-    const bothNumeric = Number.isInteger(aNumber) && Number.isInteger(bNumber);
-
-    if (bothNumeric) return bNumber - aNumber;
-
-    return bPart.localeCompare(aPart);
-  }
-
-  return 0;
-}
-
-function compareChangelogSections(a, b) {
-  const aSemver = parseSemver(a.version);
-  const bSemver = parseSemver(b.version);
-
-  if (aSemver && bSemver) {
-    for (const key of ['major', 'minor', 'patch']) {
-      if (aSemver[key] !== bSemver[key]) return bSemver[key] - aSemver[key];
-    }
-
-    if (aSemver.pre && !bSemver.pre) return -1;
-    if (!aSemver.pre && bSemver.pre) return 1;
-    if (aSemver.pre && bSemver.pre) {
-      return comparePrereleaseDesc(aSemver.pre, bSemver.pre);
-    }
-
-    return 0;
-  }
-
-  if (aSemver) return -1;
-  if (bSemver) return 1;
-
-  return a.index - b.index;
-}
-
 function parseChangelog(content) {
   const normalized = content.replace(/\r\n/g, '\n');
   const sectionMatches = [...normalized.matchAll(/^##\s+(.+?)\s*$/gm)];
@@ -269,31 +220,69 @@ function parseChangelog(content) {
   return { header, sections };
 }
 
-export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
-  const oursChangelog = parseChangelog(ours);
-  const theirsChangelog = parseChangelog(theirs);
-  const sectionsByVersion = new Map();
+function isStableChangelogSection(section) {
+  const version = parseSemver(section.version);
 
-  for (const section of oursChangelog.sections) {
-    sectionsByVersion.set(section.version, { ...section, source: 'ours' });
-  }
+  return !!version && !version.pre;
+}
 
-  for (const section of theirsChangelog.sections) {
-    const existing = sectionsByVersion.get(section.version);
+function collectStableChangelogInsertions({ oursVersions, theirsSections }) {
+  const sectionsByAnchorVersion = new Map();
+  const pendingSections = [];
+  for (const section of theirsSections) {
+    if (!isStableChangelogSection(section)) continue;
 
-    if (!existing) {
-      sectionsByVersion.set(section.version, { ...section, source: 'theirs' });
+    if (!oursVersions.has(section.version)) {
+      pendingSections.push(section);
       continue;
     }
 
-    if (!parseSemver(section.version)?.pre) {
-      sectionsByVersion.set(section.version, { ...section, source: 'theirs' });
+    if (pendingSections.length > 0) {
+      sectionsByAnchorVersion.set(section.version, [...pendingSections]);
+      pendingSections.length = 0;
     }
   }
 
-  const sections = [...sectionsByVersion.values()].sort(
-    compareChangelogSections
+  return {
+    sectionsByAnchorVersion,
+    trailingSections: pendingSections,
+  };
+}
+
+export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
+  const oursChangelog = parseChangelog(ours);
+  const theirsChangelog = parseChangelog(theirs);
+  const oursVersions = new Set(
+    oursChangelog.sections.map((section) => section.version)
   );
+  const theirsByVersion = new Map(
+    theirsChangelog.sections.map((section) => [section.version, section])
+  );
+  const stableInsertions = collectStableChangelogInsertions({
+    oursVersions,
+    theirsSections: theirsChangelog.sections,
+  });
+  const sections = [];
+
+  for (const section of oursChangelog.sections) {
+    const sectionsToInsert = stableInsertions.sectionsByAnchorVersion.get(
+      section.version
+    );
+    const theirsSection = theirsByVersion.get(section.version);
+
+    if (sectionsToInsert) {
+      sections.push(...sectionsToInsert);
+    }
+
+    sections.push(
+      theirsSection && isStableChangelogSection(section)
+        ? theirsSection
+        : section
+    );
+  }
+
+  sections.push(...stableInsertions.trailingSections);
+
   const header = oursChangelog.header || theirsChangelog.header;
 
   return `${header}\n\n${sections.map((section) => section.raw).join('\n\n')}\n`;
