@@ -1,5 +1,11 @@
 # @platejs/core
 
+## 54.0.0-beta.0
+
+### Major Changes
+
+- [#5019](https://github.com/udecode/plate/pull/5019) by [@zbeyens](https://github.com/zbeyens) – Prepare v54 beta prerelease versioning.
+
 ## 53.1.2
 
 ### Patch Changes
