@@ -1,5 +1,11 @@
 # @platejs/core
 
+## 53.1.7
+
+### Patch Changes
+
+- [`fe63687`](https://github.com/udecode/plate/commit/fe63687bcdb7d9f058dc9daa67fdf6fe78fb4b63) by [@felixfeng33](https://github.com/felixfeng33) – Test fork patch version PR generation.
+
 ## 53.1.2
 
 ### Patch Changes
