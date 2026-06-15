@@ -108,7 +108,11 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   );
   assert.match(
     workflow,
-    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main'/
+    /always\(\) && needs\.release\.result == 'success' && \(needs\.sync-release-artifacts\.result == 'success' \|\| needs\.sync-release-artifacts\.result == 'skipped'\) && github\.ref_name == 'main'/
+  );
+  assert.doesNotMatch(
+    workflow,
+    /sync-main-to-next:[\s\S]*needs\.release\.outputs\.published == 'true'/
   );
   assert.match(
     workflow,
