@@ -18,6 +18,14 @@ const promoteWorkflowPath = new URL(
   '../../.github/workflows/promote.yml',
   import.meta.url
 );
+const autoRetargetWorkflowPath = new URL(
+  '../../.github/workflows/auto-retarget.yml',
+  import.meta.url
+);
+const verifyChangesetsWorkflowPath = new URL(
+  '../../.github/workflows/verify-changesets.yml',
+  import.meta.url
+);
 const packageJsonPath = new URL('../../package.json', import.meta.url);
 const releasePackagesPath = new URL('./release-packages.mjs', import.meta.url);
 const nextConfigPath = new URL(
@@ -146,6 +154,57 @@ test('release branch PR helpers build promote and sync PRs', () => {
   );
   assert.match(syncPullRequest.body, /stable fixes from `main`/);
   assert.match(syncPullRequest.body, /keep `next` versions/);
+});
+
+test('auto-retarget workflow moves non-patch changesets from main to next', async () => {
+  const workflow = await readFile(autoRetargetWorkflowPath, 'utf8');
+
+  assert.match(workflow, /pull_request_target:/);
+  assert.match(workflow, /branches:\s*\n\s*-\s*main/);
+  assert.match(
+    workflow,
+    /github\.event\.pull_request\.head\.repo\.full_name != github\.repository/
+  );
+  assert.match(workflow, /github\.event\.pull_request\.head\.ref != 'next'/);
+  assert.match(workflow, /github\.event\.repository\.default_branch/);
+  assert.match(workflow, /getChangesetReleaseType/);
+  assert.match(workflow, /releaseType !== 'minor' && releaseType !== 'major'/);
+  assert.match(workflow, /branch:\s*'next'/);
+  assert.match(workflow, /base:\s*'next'/);
+  assert.match(workflow, /retargeted-to-next/);
+  assert.match(workflow, /main` only accepts patch changes/);
+});
+
+test('verify changesets workflow blocks non-patch releases on main', async () => {
+  const workflow = await readFile(verifyChangesetsWorkflowPath, 'utf8');
+  const preJsonGuardIndex = workflow.indexOf(
+    '.changeset/pre.json must not be committed to main'
+  );
+  const promoteExemptionIndex = workflow.indexOf(
+    'Verification exempt: next -> main promotion PR.'
+  );
+
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /-\s*main/);
+  assert.match(workflow, /-\s*next/);
+  assert.match(workflow, /-\s*'release\/\*\*'/);
+  assert.match(workflow, /merge_group:/);
+  assert.match(workflow, /headRef === 'next' && baseRef === 'main'/);
+  assert.match(workflow, /headRef === 'main' && baseRef === 'next'/);
+  assert.match(
+    workflow,
+    /\.changeset\/pre\.json must not be committed to main/
+  );
+  assert.ok(preJsonGuardIndex > 0);
+  assert.ok(promoteExemptionIndex > preJsonGuardIndex);
+  assert.match(workflow, /Missing changeset/);
+  assert.match(workflow, /skip-changeset/);
+  assert.match(workflow, /getChangesetValidationErrors/);
+  assert.match(
+    workflow,
+    /releaseType === 'minor' \|\| releaseType === 'major'/
+  );
+  assert.match(workflow, /Only patch bumps are allowed/);
 });
 
 test('package scripts expose CI version and release commands only', async () => {
