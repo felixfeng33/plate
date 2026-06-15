@@ -17,7 +17,7 @@ jobs:
     name: Release and changelog
     runs-on: ubuntu-latest
     if: >-
-      github.repository == 'udecode/plate' &&
+      (github.repository == 'udecode/plate' || vars.RELEASE_VERSION_PR_TEST == 'true') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/next') &&
       !contains(github.event.head_commit.message, '[skip release]')
     permissions:
@@ -182,6 +182,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.API_TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_TAG: ${{ steps.release_channel.outputs.npm_tag }}
+          PLATE_DISABLE_PUBLISH: ${{ github.repository != 'udecode/plate' }}
           PLATE_RELEASE_CHANNEL: ${{ steps.release_channel.outputs.channel }}
 
       - name: 🏷️ Push package tags

@@ -8,7 +8,11 @@ import {
   buildPromotePullRequest,
   getStableVersion,
 } from './release-branch-prs.mjs';
-import { getReleasePlan, resolveReleaseChannel } from './release-packages.mjs';
+import {
+  assertPublishEnabled,
+  getReleasePlan,
+  resolveReleaseChannel,
+} from './release-packages.mjs';
 
 const releaseWorkflowPath = new URL(
   '../../.github/workflows/release.yml',
@@ -39,6 +43,10 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   assert.match(workflow, /branches:\s*\n\s*-\s*main\s*\n\s*-\s*next/);
   assert.match(
     workflow,
+    /github\.repository == 'udecode\/plate' \|\| vars\.RELEASE_VERSION_PR_TEST == 'true'/
+  );
+  assert.match(
+    workflow,
     /github\.ref == 'refs\/heads\/main' \|\| github\.ref == 'refs\/heads\/next'/
   );
   assert.match(workflow, /Guard release channel/);
@@ -51,6 +59,10 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   assert.match(
     workflow,
     /NPM_CONFIG_TAG:\s*\$\{\{ steps\.release_channel\.outputs\.npm_tag \}\}/
+  );
+  assert.match(
+    workflow,
+    /PLATE_DISABLE_PUBLISH:\s*\$\{\{ github\.repository != 'udecode\/plate' \}\}/
   );
   assert.match(
     workflow,
@@ -258,6 +270,13 @@ test('beta package release uses an explicit npm beta tag', async () => {
     hidePreStateForPublish: true,
     publish: ['pnpm', ['changeset', 'publish', '--tag', 'beta']],
   });
+  assert.doesNotThrow(() =>
+    assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'false' } })
+  );
+  assert.throws(
+    () => assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'true' } }),
+    /Package publishing is disabled/
+  );
   assert.match(releasePackages, /pre\.json\.beta-publish-backup/);
   assert.match(
     releasePackages,
