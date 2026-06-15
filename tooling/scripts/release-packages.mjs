@@ -63,6 +63,14 @@ export function getReleasePlan(channel) {
   throw new Error(`Unsupported release channel: ${channel}`);
 }
 
+export function assertPublishEnabled({ env = process.env } = {}) {
+  if (env.PLATE_DISABLE_PUBLISH === 'true') {
+    throw new Error(
+      'Package publishing is disabled for this repository. Version PR testing can run, but npm publish is blocked.'
+    );
+  }
+}
+
 function runBetaRelease() {
   validateBetaPreState(readBetaPreState());
 
@@ -120,6 +128,8 @@ function isMainModule() {
 
 if (isMainModule()) {
   try {
+    assertPublishEnabled();
+
     const channel = resolveReleaseChannel();
 
     getReleasePlan(channel);
