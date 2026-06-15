@@ -12,8 +12,8 @@ import {
   resolvePackageManifestForMainToNextSync,
 } from './release-branch-prs.mjs';
 import {
-  assertPublishEnabled,
   getReleasePlan,
+  isPublishDisabled,
   resolveReleaseChannel,
 } from './release-packages.mjs';
 
@@ -71,9 +71,17 @@ test('release workflow uses the pruned GitHub Release path', async () => {
     workflow,
     /PLATE_RELEASE_CHANNEL:\s*\$\{\{ steps\.release_channel\.outputs\.channel \}\}/
   );
+  assert.match(
+    workflow,
+    /versionPullRequestNumber:\s*\$\{\{ steps\.changesets\.outputs\.pullRequestNumber \}\}/
+  );
   assert.match(workflow, /createGithubReleases:\s*false/);
   assert.match(workflow, /version:\s*pnpm ci:version/);
   assert.match(workflow, /publish:\s*pnpm ci:release/);
+  assert.match(
+    workflow,
+    /github\.repository == 'udecode\/plate' && steps\.changesets\.outputs\.published == 'true'/
+  );
   assert.match(workflow, /node tooling\/scripts\/published-package-tags\.mjs/);
   assert.match(workflow, /refs\/tags\/\$\{tag\}:refs\/tags\/\$\{tag\}/);
   assert.match(
@@ -102,7 +110,7 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   assert.match(workflow, /sync-release-artifacts:/);
   assert.match(
     workflow,
-    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main'/
+    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main' && github\.repository == 'udecode\/plate'/
   );
   assert.match(workflow, /sync-main-to-next:/);
   assert.match(
@@ -111,7 +119,7 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   );
   assert.match(
     workflow,
-    /always\(\) && needs\.release\.result == 'success' && \(needs\.sync-release-artifacts\.result == 'success' \|\| needs\.sync-release-artifacts\.result == 'skipped'\) && github\.ref_name == 'main'/
+    /always\(\) && needs\.release\.result == 'success' && \(needs\.sync-release-artifacts\.result == 'success' \|\| needs\.sync-release-artifacts\.result == 'skipped'\) && github\.ref_name == 'main' && needs\.release\.outputs\.versionPullRequestNumber == ''/
   );
   assert.doesNotMatch(
     workflow,
@@ -370,12 +378,17 @@ test('beta package release uses an explicit npm beta tag', async () => {
     hidePreStateForPublish: true,
     publish: ['pnpm', ['changeset', 'publish', '--tag', 'beta']],
   });
-  assert.doesNotThrow(() =>
-    assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'false' } })
+  assert.equal(
+    isPublishDisabled({ env: { PLATE_DISABLE_PUBLISH: 'false' } }),
+    false
   );
-  assert.throws(
-    () => assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'true' } }),
-    /Package publishing is disabled/
+  assert.equal(
+    isPublishDisabled({ env: { PLATE_DISABLE_PUBLISH: 'true' } }),
+    true
+  );
+  assert.match(
+    releasePackages,
+    /Skipping npm publish for Version PR workflow testing/
   );
   assert.match(releasePackages, /pre\.json\.beta-publish-backup/);
   assert.match(

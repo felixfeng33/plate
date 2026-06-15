@@ -27,6 +27,7 @@ jobs:
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
+      versionPullRequestNumber: ${{ steps.changesets.outputs.pullRequestNumber }}
 
     steps:
       - name: Generate App Token
@@ -186,7 +187,7 @@ jobs:
           PLATE_RELEASE_CHANNEL: ${{ steps.release_channel.outputs.channel }}
 
       - name: 🏷️ Push package tags
-        if: ${{ steps.changesets.outputs.published == 'true' }}
+        if: ${{ github.repository == 'udecode/plate' && steps.changesets.outputs.published == 'true' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.API_TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
@@ -226,7 +227,7 @@ jobs:
 
       - name: 📝 Generate raw release notes
         id: raw-notes
-        if: ${{ steps.changesets.outputs.published == 'true' }}
+        if: ${{ github.repository == 'udecode/plate' && steps.changesets.outputs.published == 'true' }}
         env:
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
         run: node tooling/scripts/release-notes.mjs
@@ -272,7 +273,7 @@ jobs:
           fi
 
       - name: 📝 Create GitHub Release
-        if: ${{ steps.changesets.outputs.published == 'true' }}
+        if: ${{ github.repository == 'udecode/plate' && steps.changesets.outputs.published == 'true' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.API_TOKEN_GITHUB || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.raw-notes.outputs.version }}
@@ -332,7 +333,7 @@ jobs:
     name: Sync registry and templates after publish
     runs-on: ubuntu-latest
     needs: release
-    if: ${{ needs.release.result == 'success' && needs.release.outputs.published == 'true' && github.ref_name == 'main' }}
+    if: ${{ needs.release.result == 'success' && needs.release.outputs.published == 'true' && github.ref_name == 'main' && github.repository == 'udecode/plate' }}
     permissions:
       contents: write
       pull-requests: write
@@ -525,7 +526,7 @@ jobs:
     needs:
       - release
       - sync-release-artifacts
-    if: ${{ always() && needs.release.result == 'success' && (needs.sync-release-artifacts.result == 'success' || needs.sync-release-artifacts.result == 'skipped') && github.ref_name == 'main' }}
+    if: ${{ always() && needs.release.result == 'success' && (needs.sync-release-artifacts.result == 'success' || needs.sync-release-artifacts.result == 'skipped') && github.ref_name == 'main' && needs.release.outputs.versionPullRequestNumber == '' }}
     permissions:
       contents: write
       pull-requests: write
