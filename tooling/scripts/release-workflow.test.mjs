@@ -7,6 +7,9 @@ import {
   buildMainToNextSyncPullRequest,
   buildPromotePullRequest,
   getStableVersion,
+  mainToNextSyncBranch,
+  mergeChangelogsForMainToNextSync,
+  resolvePackageManifestForMainToNextSync,
 } from './release-branch-prs.mjs';
 import {
   assertPublishEnabled,
@@ -118,6 +121,8 @@ test('release workflow uses the pruned GitHub Release path', async () => {
     workflow,
     /node tooling\/scripts\/release-branch-prs\.mjs sync-main-to-next/
   );
+  assert.match(workflow, /contents:\s*write/);
+  assert.match(workflow, /persist-credentials:\s*true/);
   assert.doesNotMatch(workflow, /sync-release-docs/);
   assert.doesNotMatch(workflow, /global-release/);
   assert.doesNotMatch(workflow, /pr-analyzer/);
@@ -163,13 +168,101 @@ test('release branch PR helpers build promote and sync PRs', () => {
   const syncPullRequest = buildMainToNextSyncPullRequest();
 
   assert.equal(syncPullRequest.base, 'next');
-  assert.equal(syncPullRequest.head, 'main');
+  assert.equal(syncPullRequest.head, mainToNextSyncBranch);
   assert.equal(
     syncPullRequest.title,
     'chore: sync main to next [skip release]'
   );
   assert.match(syncPullRequest.body, /stable fixes from `main`/);
-  assert.match(syncPullRequest.body, /keep `next` versions/);
+  assert.match(syncPullRequest.body, /sync\/main-to-next/);
+  assert.match(syncPullRequest.body, /Release metadata conflicts/);
+});
+
+test('main to next sync keeps beta package versions', () => {
+  const resolved = resolvePackageManifestForMainToNextSync({
+    ours: JSON.stringify({
+      description: 'test',
+      name: '@platejs/core',
+      version: '54.0.0-beta.1',
+    }),
+    theirs: JSON.stringify({
+      description: 'test',
+      name: '@platejs/core',
+      version: '53.1.8',
+    }),
+  });
+
+  assert.deepEqual(JSON.parse(resolved), {
+    description: 'test',
+    name: '@platejs/core',
+    version: '54.0.0-beta.1',
+  });
+  assert.throws(
+    () =>
+      resolvePackageManifestForMainToNextSync({
+        ours: '{"name":"@platejs/core","version":"54.0.0-beta.1"}',
+        theirs:
+          '{"name":"@platejs/core","description":"changed","version":"53.1.8"}',
+      }),
+    /changed fields other than version/
+  );
+});
+
+test('main to next sync keeps beta changelog sections above stable history', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 54.0.0-beta.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Beta major.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing stable patch.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Previous main patch.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing stable patch from main.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7,53.1.2'
+  );
+  assert.match(resolved, /- Main patch\./);
+  assert.match(resolved, /- Existing stable patch from main\./);
+  assert.doesNotMatch(resolved, /<<<<<<<|=======|>>>>>>>/);
 });
 
 test('auto-retarget workflow moves non-patch changesets from main to next', async () => {
@@ -206,7 +299,10 @@ test('verify changesets workflow blocks non-patch releases on main', async () =>
   assert.match(workflow, /-\s*'release\/\*\*'/);
   assert.match(workflow, /merge_group:/);
   assert.match(workflow, /headRef === 'next' && baseRef === 'main'/);
-  assert.match(workflow, /headRef === 'main' && baseRef === 'next'/);
+  assert.match(
+    workflow,
+    /\(headRef === 'main' \|\| headRef === 'sync\/main-to-next'\) && baseRef === 'next'/
+  );
   assert.match(
     workflow,
     /\.changeset\/pre\.json must not be committed to main/
