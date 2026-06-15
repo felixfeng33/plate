@@ -7,10 +7,13 @@ import {
   buildMainToNextSyncPullRequest,
   buildPromotePullRequest,
   getStableVersion,
+  mainToNextSyncBranch,
+  mergeChangelogsForMainToNextSync,
+  resolvePackageManifestForMainToNextSync,
 } from './release-branch-prs.mjs';
 import {
-  assertPublishEnabled,
   getReleasePlan,
+  isPublishDisabled,
   resolveReleaseChannel,
 } from './release-packages.mjs';
 
@@ -68,9 +71,17 @@ test('release workflow uses the pruned GitHub Release path', async () => {
     workflow,
     /PLATE_RELEASE_CHANNEL:\s*\$\{\{ steps\.release_channel\.outputs\.channel \}\}/
   );
+  assert.match(
+    workflow,
+    /versionPullRequestNumber:\s*\$\{\{ steps\.changesets\.outputs\.pullRequestNumber \}\}/
+  );
   assert.match(workflow, /createGithubReleases:\s*false/);
   assert.match(workflow, /version:\s*pnpm ci:version/);
   assert.match(workflow, /publish:\s*pnpm ci:release/);
+  assert.match(
+    workflow,
+    /github\.repository == 'udecode\/plate' && steps\.changesets\.outputs\.published == 'true'/
+  );
   assert.match(workflow, /node tooling\/scripts\/published-package-tags\.mjs/);
   assert.match(workflow, /refs\/tags\/\$\{tag\}:refs\/tags\/\$\{tag\}/);
   assert.match(
@@ -99,7 +110,7 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   assert.match(workflow, /sync-release-artifacts:/);
   assert.match(
     workflow,
-    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main'/
+    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main' && github\.repository == 'udecode\/plate'/
   );
   assert.match(workflow, /sync-main-to-next:/);
   assert.match(
@@ -108,7 +119,7 @@ test('release workflow uses the pruned GitHub Release path', async () => {
   );
   assert.match(
     workflow,
-    /always\(\) && needs\.release\.result == 'success' && \(needs\.sync-release-artifacts\.result == 'success' \|\| needs\.sync-release-artifacts\.result == 'skipped'\) && github\.ref_name == 'main'/
+    /always\(\) && needs\.release\.result == 'success' && \(needs\.sync-release-artifacts\.result == 'success' \|\| needs\.sync-release-artifacts\.result == 'skipped'\) && github\.ref_name == 'main' && needs\.release\.outputs\.versionPullRequestNumber == ''/
   );
   assert.doesNotMatch(
     workflow,
@@ -118,6 +129,8 @@ test('release workflow uses the pruned GitHub Release path', async () => {
     workflow,
     /node tooling\/scripts\/release-branch-prs\.mjs sync-main-to-next/
   );
+  assert.match(workflow, /contents:\s*write/);
+  assert.match(workflow, /persist-credentials:\s*true/);
   assert.doesNotMatch(workflow, /sync-release-docs/);
   assert.doesNotMatch(workflow, /global-release/);
   assert.doesNotMatch(workflow, /pr-analyzer/);
@@ -163,13 +176,271 @@ test('release branch PR helpers build promote and sync PRs', () => {
   const syncPullRequest = buildMainToNextSyncPullRequest();
 
   assert.equal(syncPullRequest.base, 'next');
-  assert.equal(syncPullRequest.head, 'main');
+  assert.equal(syncPullRequest.head, mainToNextSyncBranch);
   assert.equal(
     syncPullRequest.title,
     'chore: sync main to next [skip release]'
   );
   assert.match(syncPullRequest.body, /stable fixes from `main`/);
-  assert.match(syncPullRequest.body, /keep `next` versions/);
+  assert.match(syncPullRequest.body, /sync\/main-to-next/);
+  assert.match(syncPullRequest.body, /Release metadata conflicts/);
+});
+
+test('main to next sync keeps beta package versions', () => {
+  const resolved = resolvePackageManifestForMainToNextSync({
+    ours: JSON.stringify({
+      description: 'test',
+      name: '@platejs/core',
+      version: '54.0.0-beta.1',
+    }),
+    theirs: JSON.stringify({
+      description: 'test',
+      name: '@platejs/core',
+      version: '53.1.8',
+    }),
+  });
+
+  assert.deepEqual(JSON.parse(resolved), {
+    description: 'test',
+    name: '@platejs/core',
+    version: '54.0.0-beta.1',
+  });
+  assert.throws(
+    () =>
+      resolvePackageManifestForMainToNextSync({
+        ours: '{"name":"@platejs/core","version":"54.0.0-beta.1"}',
+        theirs:
+          '{"name":"@platejs/core","description":"changed","version":"53.1.8"}',
+      }),
+    /changed fields other than version/
+  );
+});
+
+test('main to next sync keeps beta changelog sections above stable history', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 54.0.0-beta.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Beta major.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing stable patch.',
+      '',
+      '## 1.0.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Existing old stable release.',
+      '',
+      '## 1.0.0-next.61',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing old prerelease.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Previous main patch.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing stable patch from main.',
+      '',
+      '## 1.0.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Existing old stable release from main.',
+      '',
+      '## 1.0.0-next.61',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing old prerelease.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7,53.1.2,1.0.0,1.0.0-next.61'
+  );
+  assert.match(resolved, /- Main patch\./);
+  assert.match(resolved, /- Existing stable patch from main\./);
+  assert.ok(
+    resolved.indexOf('## 1.0.0\n') < resolved.indexOf('## 1.0.0-next.61')
+  );
+  assert.match(resolved, /- Existing old stable release from main\./);
+  assert.doesNotMatch(resolved, /<<<<<<<|=======|>>>>>>>/);
+});
+
+test('main to next sync inserts stable changelog sections between existing anchors', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing older stable patch.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch from main.',
+      '',
+      '## 53.1.6',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch released between sync anchors.',
+      '',
+      '## 53.1.2',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing older stable patch from main.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,53.1.8,53.1.6,53.1.2'
+  );
+  assert.match(resolved, /- Main patch released between sync anchors\./);
+  assert.match(resolved, /- Existing synced stable patch from main\./);
+  assert.match(resolved, /- Existing older stable patch from main\./);
+});
+
+test('main to next sync appends stable changelog sections after beta-only history', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 54.0.0-beta.0',
+      '',
+      '### Major Changes',
+      '',
+      '- Beta major.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Previous main patch.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,54.0.0-beta.0,53.1.8,53.1.7'
+  );
+});
+
+test('main to next sync keeps stable sections after the last matched anchor', () => {
+  const resolved = mergeChangelogsForMainToNextSync({
+    ours: [
+      '# @platejs/core',
+      '',
+      '## 54.0.0-beta.1',
+      '',
+      '### Minor Changes',
+      '',
+      '- Beta minor.',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch.',
+      '',
+    ].join('\n'),
+    theirs: [
+      '# @platejs/core',
+      '',
+      '## 53.1.8',
+      '',
+      '### Patch Changes',
+      '',
+      '- Existing synced stable patch from main.',
+      '',
+      '## 53.1.7',
+      '',
+      '### Patch Changes',
+      '',
+      '- Main patch after the final shared anchor.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(
+    [...resolved.matchAll(/^##\s+(.+)$/gm)].map((match) => match[1]).join(','),
+    '54.0.0-beta.1,53.1.8,53.1.7'
+  );
+  assert.match(resolved, /- Main patch after the final shared anchor\./);
 });
 
 test('auto-retarget workflow moves non-patch changesets from main to next', async () => {
@@ -206,7 +477,10 @@ test('verify changesets workflow blocks non-patch releases on main', async () =>
   assert.match(workflow, /-\s*'release\/\*\*'/);
   assert.match(workflow, /merge_group:/);
   assert.match(workflow, /headRef === 'next' && baseRef === 'main'/);
-  assert.match(workflow, /headRef === 'main' && baseRef === 'next'/);
+  assert.match(
+    workflow,
+    /\(headRef === 'main' \|\| headRef === 'sync\/main-to-next'\) && baseRef === 'next'/
+  );
   assert.match(
     workflow,
     /\.changeset\/pre\.json must not be committed to main/
@@ -274,12 +548,17 @@ test('beta package release uses an explicit npm beta tag', async () => {
     hidePreStateForPublish: true,
     publish: ['pnpm', ['changeset', 'publish', '--tag', 'beta']],
   });
-  assert.doesNotThrow(() =>
-    assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'false' } })
+  assert.equal(
+    isPublishDisabled({ env: { PLATE_DISABLE_PUBLISH: 'false' } }),
+    false
   );
-  assert.throws(
-    () => assertPublishEnabled({ env: { PLATE_DISABLE_PUBLISH: 'true' } }),
-    /Package publishing is disabled/
+  assert.equal(
+    isPublishDisabled({ env: { PLATE_DISABLE_PUBLISH: 'true' } }),
+    true
+  );
+  assert.match(
+    releasePackages,
+    /Skipping npm publish for Version PR workflow testing/
   );
   assert.match(releasePackages, /pre\.json\.beta-publish-backup/);
   assert.match(
