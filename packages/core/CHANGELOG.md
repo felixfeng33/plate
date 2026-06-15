@@ -1,5 +1,11 @@
 # @platejs/core
 
+## 54.0.0-beta.1
+
+### Minor Changes
+
+- [`c62c081`](https://github.com/udecode/plate/commit/c62c08188113d1f519b7c2d0c27fe6f58b1b0f0f) by [@felixfeng33](https://github.com/felixfeng33) – Test fork minor version PR generation.
+
 ## 54.0.0-beta.0
 
 ### Major Changes
