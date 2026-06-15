@@ -3,10 +3,19 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 import { validateBetaPreState } from './guard-beta-pre-release.mjs';
+import {
+  buildMainToNextSyncPullRequest,
+  buildPromotePullRequest,
+  getStableVersion,
+} from './release-branch-prs.mjs';
 import { getReleasePlan, resolveReleaseChannel } from './release-packages.mjs';
 
 const releaseWorkflowPath = new URL(
   '../../.github/workflows/release.yml',
+  import.meta.url
+);
+const promoteWorkflowPath = new URL(
+  '../../.github/workflows/promote.yml',
   import.meta.url
 );
 const packageJsonPath = new URL('../../package.json', import.meta.url);
@@ -72,11 +81,71 @@ test('release workflow uses the pruned GitHub Release path', async () => {
     workflow,
     /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main'/
   );
+  assert.match(workflow, /sync-main-to-next:/);
+  assert.match(
+    workflow,
+    /needs:\s*\n\s*-\s*release\s*\n\s*-\s*sync-release-artifacts/
+  );
+  assert.match(
+    workflow,
+    /needs\.release\.outputs\.published == 'true' && github\.ref_name == 'main'/
+  );
+  assert.match(
+    workflow,
+    /node tooling\/scripts\/release-branch-prs\.mjs sync-main-to-next/
+  );
   assert.doesNotMatch(workflow, /sync-release-docs/);
   assert.doesNotMatch(workflow, /global-release/);
   assert.doesNotMatch(workflow, /pr-analyzer/);
   assert.doesNotMatch(workflow, /snapshot:/);
   assert.doesNotMatch(workflow, /release\/\*\*/);
+});
+
+test('promote workflow exits beta mode and creates next to main PR', async () => {
+  const workflow = await readFile(promoteWorkflowPath, 'utf8');
+
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /dry_run:/);
+  assert.match(workflow, /if:\s*github\.ref == 'refs\/heads\/next'/);
+  assert.match(workflow, /ref:\s*next/);
+  assert.match(workflow, /pnpm changeset pre exit/);
+  assert.match(workflow, /pnpm ci:version/);
+  assert.match(workflow, /packages\/plate\/package\.json/);
+  assert.match(workflow, /\[skip release\]/);
+  assert.match(workflow, /git push origin next/);
+  assert.match(
+    workflow,
+    /node tooling\/scripts\/release-branch-prs\.mjs "\$\{args\[@\]\}"/
+  );
+  assert.match(workflow, /promote --version "\$VERSION"/);
+  assert.match(workflow, /--dry-run/);
+});
+
+test('release branch PR helpers build promote and sync PRs', () => {
+  assert.equal(getStableVersion('54.0.0-beta.3'), '54.0.0');
+  assert.equal(getStableVersion('54.1.2'), '54.1.2');
+  assert.throws(() => getStableVersion('54.0'), /Invalid package version/);
+
+  const promotePullRequest = buildPromotePullRequest({
+    version: '54.0.0-beta.0',
+  });
+
+  assert.equal(promotePullRequest.base, 'main');
+  assert.equal(promotePullRequest.head, 'next');
+  assert.equal(promotePullRequest.title, 'chore: promote v54.0.0 to stable');
+  assert.match(promotePullRequest.body, /publishes Plate packages to npm/);
+  assert.match(promotePullRequest.body, /Create a merge commit/);
+
+  const syncPullRequest = buildMainToNextSyncPullRequest();
+
+  assert.equal(syncPullRequest.base, 'next');
+  assert.equal(syncPullRequest.head, 'main');
+  assert.equal(
+    syncPullRequest.title,
+    'chore: sync main to next [skip release]'
+  );
+  assert.match(syncPullRequest.body, /stable fixes from `main`/);
+  assert.match(syncPullRequest.body, /keep `next` versions/);
 });
 
 test('package scripts expose CI version and release commands only', async () => {
