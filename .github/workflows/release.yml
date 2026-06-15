@@ -520,12 +520,12 @@ jobs:
           exit 1
 
   sync-main-to-next:
-    name: Sync main to next after release
+    name: Sync main to next after release workflow
     runs-on: ubuntu-latest
     needs:
       - release
       - sync-release-artifacts
-    if: ${{ needs.release.result == 'success' && needs.sync-release-artifacts.result == 'success' && needs.release.outputs.published == 'true' && github.ref_name == 'main' }}
+    if: ${{ always() && needs.release.result == 'success' && (needs.sync-release-artifacts.result == 'success' || needs.sync-release-artifacts.result == 'skipped') && github.ref_name == 'main' }}
     permissions:
       contents: read
       pull-requests: write

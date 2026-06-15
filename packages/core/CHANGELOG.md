@@ -12,6 +12,18 @@
 
 - [#5019](https://github.com/udecode/plate/pull/5019) by [@zbeyens](https://github.com/zbeyens) – Prepare v54 beta prerelease versioning.
 
+## 53.1.8
+
+### Patch Changes
+
+- [`9e05e37`](https://github.com/udecode/plate/commit/9e05e37bc68a782d4f4b92f2364c603d4b2abe40) by [@felixfeng33](https://github.com/felixfeng33) – Test main-to-next sync after a patch PR lands on main.
+
+## 53.1.7
+
+### Patch Changes
+
+- [`fe63687`](https://github.com/udecode/plate/commit/fe63687bcdb7d9f058dc9daa67fdf6fe78fb4b63) by [@felixfeng33](https://github.com/felixfeng33) – Test fork patch version PR generation.
+
 ## 53.1.2
 
 ### Patch Changes
