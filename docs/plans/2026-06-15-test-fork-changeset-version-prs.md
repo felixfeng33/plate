@@ -60,16 +60,16 @@ Blocked condition:
 Task state:
 - task_type: fork release automation test
 - task_complexity: normal
-- current_phase: implementation
-- current_phase_status: in_progress
-- next_phase: implementation
+- current_phase: closeout
+- current_phase_status: complete
+- next_phase: final response
 - goal_status: active
 
 Current verdict:
-- verdict: pending
-- confidence: medium
-- next owner: task
-- reason: patch PR branch is being prepared; full Version PR proof depends on fork release job eligibility.
+- verdict: complete
+- confidence: high
+- next owner: user
+- reason: patch and minor source PRs were opened and merged; main and next Version Packages PRs were generated in the fork without npm publish.
 
 Completion rule:
 - Do not call `update_goal(status: complete)` while any required checklist item
@@ -83,127 +83,145 @@ Completion rule:
 Start Gates:
 | Gate | Applies | Evidence |
 |------|---------|----------|
-| Skill analysis before edits | pending | pending |
-| Active goal checked or created | pending | pending |
-| Source of truth read before edits | pending | pending |
-| Tracker comments and attachments read | pending | pending |
-| Video transcript evidence required | pending | pending |
-| `docs/solutions` checked for non-trivial existing-code work | pending | pending |
-| TDD decision before behavior change or bug fix | pending | pending |
-| Branch decision for code-changing task | pending | pending |
-| Release artifact decision | pending | pending |
-| Browser tool decision for browser surface | pending | pending |
-| PR expectation decision | pending | pending |
-| Tracker sync expectation decision | pending | pending |
-| Output budget strategy recorded | pending | pending |
+| Skill analysis before edits | yes | Loaded `autogoal` and `git-commit-push-pr`; used repo PR/check rules. |
+| Active goal checked or created | yes | `get_goal` returned none; created this goal. |
+| Source of truth read before edits | yes | Read current release/retarget/verify workflows and release helper scripts. |
+| Tracker comments and attachments read | no | N/A: chat task. |
+| Video transcript evidence required | no | N/A: no video. |
+| `docs/solutions` checked for non-trivial existing-code work | no | N/A: behavior was verified directly against fork GitHub Actions. |
+| TDD decision before behavior change or bug fix | yes | Used focused workflow/helper tests for release helper fixes; source PRs are changeset-only tests. |
+| Branch decision for code-changing task | yes | Created `codex/test-patch-version-pr` from `main` and `codex/test-minor-version-pr` from `next`; direct fork workflow fixes landed on `main`/`next` to enable the test. |
+| Release artifact decision | yes | Test changesets intentionally created; no npm publish or package rename. |
+| Browser tool decision for browser surface | no | N/A: GitHub workflow behavior only. |
+| PR expectation decision | yes | User asked to open patch and minor test PRs and inspect Version PRs. |
+| Tracker sync expectation decision | no | N/A: no tracker. |
+| Output budget strategy recorded | yes | Used capped `gh` JSON and short failure log tails. |
 
 Work Checklist:
-- [ ] Short objective plus outcome, completion threshold, verification surface,
+- [x] Short objective plus outcome, completion threshold, verification surface,
       constraints, boundaries, and blocked condition are concrete.
-- [ ] Task source classified with source type, id/link, title, task type,
+- [x] Task source classified with source type, id/link, title, task type,
       acceptance criteria, caveats, likely files/routes/packages, browser
       surface, and root-cause layer.
-- [ ] Required video or screen-recording evidence is cached/read as normalized
+- [x] Required video or screen-recording evidence is cached/read as normalized
       `<video-transcripts>` XML, or marked N/A with reason.
-- [ ] Nearby repo instructions and implementation patterns read before edits.
-- [ ] Implementation fixes the right ownership boundary, or the narrower choice
+- [x] Nearby repo instructions and implementation patterns read before edits.
+- [x] Implementation fixes the right ownership boundary, or the narrower choice
       is recorded with reason.
-- [ ] Release artifact requirement recorded: changeset, registry changelog, or
+- [x] Release artifact requirement recorded: changeset, registry changelog, or
       N/A with reason.
-- [ ] Final handoff shape decided: bug/feature/testing/batch/review/tracker
+- [x] Final handoff shape decided: bug/feature/testing/batch/review/tracker
       requirements, PR body sync, and issue/Linear sync when applicable.
-- [ ] Branch handling recorded for code-changing work: dedicated branch used,
+- [x] Branch handling recorded for code-changing work: dedicated branch used,
       new branch needed, or N/A with reason.
-- [ ] Local-env-rot retry policy recorded for any surprising repo-wide failure:
+- [x] Local-env-rot retry policy recorded for any surprising repo-wide failure:
       reinstall/rerun evidence or N/A with reason.
-- [ ] Workspace authority recorded: every proof command names the cwd/tool that
+- [x] Workspace authority recorded: every proof command names the cwd/tool that
       owns the changed behavior.
-- [ ] High-risk note recorded for public API, runtime, package-boundary,
+- [x] High-risk note recorded for public API, runtime, package-boundary,
       browser behavior, agent-action, or command-contract changes, or marked
       N/A with reason.
-- [ ] Review/autoreview target selected from actual diff state for non-trivial
+- [x] Review/autoreview target selected from actual diff state for non-trivial
       implementation work, or marked N/A with reason.
-- [ ] Agent-native review decision recorded for `.agents/**`, `.claude/**`,
+- [x] Agent-native review decision recorded for `.agents/**`, `.claude/**`,
       `.codex/**`, skills, hooks, commands, prompts, or user-action tooling.
-- [ ] Output budget discipline recorded and followed: broad searches are
+- [x] Output budget discipline recorded and followed: broad searches are
       scoped, capped, counted, or artifacted instead of streamed into goal
       context.
 
 Completion Gates:
 | Gate | Applies | Required action | Evidence |
 |------|---------|-----------------|----------|
-| Named verification threshold | pending | Run the command, proof, source audit, or artifact check named in this plan | pending |
-| Bug reproduced before fix | pending | Record failing test/repro or N/A with reason | pending |
-| Targeted behavior verification | pending | Run focused test/proof for changed behavior or record N/A | pending |
-| TypeScript or typed config changed | pending | Run relevant typecheck | pending |
-| Package exports or file layout changed | pending | Run `pnpm brl` before final verification and keep generated barrel updates | pending |
-| Package manifests, lockfile, or install graph changed | pending | Run `pnpm install` and relevant package checks | pending |
-| Agent rules or skills changed | pending | Run `pnpm install` and verify generated skill sync | pending |
-| Workspace authority proof | pending | Run verification in the owning repo/package/app/route/tool and record cwd; do not count the wrong workspace as proof | pending |
-| Browser surface changed | pending | Capture Browser Use proof or record explicit waiver/blocker | pending |
-| Browser final proof | pending | Attach screenshot or exact browser verification caveat when browser proof applies | pending |
-| CI-controlled template output changed | pending | Restore generated template output or record why it is intentionally kept | pending |
-| Package behavior or public API changed | pending | Add a changeset or record why no changeset applies | pending |
-| Registry-only component work changed | pending | Update `tooling/data/plate-ui-changelog.mdx`, run `node tooling/scripts/generate-ui-changelog-entries.mjs --write`, or record N/A | pending |
-| Docs or content changed | pending | For docs-heavy work, use `--template docs`; for incidental docs, verify source-backed claims, links, examples, and rendered output or record N/A | pending |
-| High-risk mini gate | pending | For public API/runtime/package-boundary/browser/agent-action/command-contract changes, record realistic failure mode, proof plan, and why the chosen boundary is right; otherwise N/A | pending |
-| Agent-native review for agent/tooling changes | pending | For `.agents/**`, `.claude/**`, `.codex/**`, skills, hooks, commands, prompts, or user-action tooling, load `.agents/skills/agent-native-reviewer/SKILL.md` and close accepted/actionable findings, or record N/A | pending |
-| Local install corruption suspected | pending | Run `pnpm run reinstall` once, rerun the exact failing command, or record N/A | pending |
-| Autoreview for non-trivial implementation changes | pending | Load `.agents/skills/autoreview/SKILL.md`; use dirty local `--mode local`, branch/PR `--mode branch --base <base>`, or committed slice `--mode commit --commit <ref>` until no accepted/actionable findings, or record N/A for docs-only/trivial/no local patch | pending |
-| PR create or update | pending | Run `check` before PR work and sync PR body to the task-style final handoff | pending |
-| Task-style PR body verified | pending | Verify the PR body with `gh pr view --json body`; it must preserve auto-release blocks when applicable, must not include a current-PR self-link, and must use the kitcn PR #270 emoji format: `🐛 Fixes ...`, `🟢 95-100% confidence`, `Phase / 🧪 Tests / 🌐 Browser` table, and bold emoji Outcome/Caveat/Design/Verified sections | pending |
-| PR proof image hosting | pending | If PR body needs browser proof, replace local image paths with hosted GitHub URLs or record N/A | pending |
-| Tracker sync-back | pending | Post concise issue/Linear sync after PR exists, or record N/A/blocker | pending |
-| Final handoff contract | pending | Fill the final handoff fields below with exact PR/issue/confidence/tests/browser/outcome/caveats/design/verification content or N/A reason | pending |
-| Final lint | pending | Run `pnpm lint:fix` or scoped equivalent | pending |
-| Output budget discipline | pending | Verify no unbounded high-volume command output was streamed, or record the accidental output and recovery | pending |
-| Goal plan complete | yes | Run `node .agents/skills/autogoal/scripts/check-complete.mjs docs/plans/2026-06-15-test-fork-changeset-version-prs.md` | pending |
+| Named verification threshold | yes | Run the command, proof, source audit, or artifact check named in this plan | Patch PR #7, minor PR #8, main Version PR #9, and next beta Version PR #10 verified with `gh pr view` and branch diffs. |
+| Bug reproduced before fix | yes | Record failing test/repro or N/A with reason | Reproduced next release failure: `changeset status` could not find divergence from `main` on `next`; fixed with branch-aware `--since`. |
+| Targeted behavior verification | yes | Run focused test/proof for changed behavior or record N/A | `node --test tooling/scripts/prepare-release-changesets.test.mjs tooling/scripts/release-workflow.test.mjs` passed with 13 tests. |
+| TypeScript or typed config changed | no | Run relevant typecheck | N/A: JS/YAML workflow scripts only; full `pnpm check` ran on both source PR branches. |
+| Package exports or file layout changed | no | Run `pnpm brl` before final verification and keep generated barrel updates | N/A: no exports/barrels. |
+| Package manifests, lockfile, or install graph changed | yes | Run `pnpm install` and relevant package checks | `pnpm run reinstall` ran after known local React hook corruption; no lockfile changes remained. |
+| Agent rules or skills changed | no | Run `pnpm install` and verify generated skill sync | N/A: no agent source changes. |
+| Workspace authority proof | yes | Run verification in the owning repo/package/app/route/tool and record cwd; do not count the wrong workspace as proof | Commands ran in `/Users/felixfeng/Desktop/repos/plate`; GitHub proof from `felixfeng33/plate`. |
+| Browser surface changed | no | Capture Browser Use proof or record explicit waiver/blocker | N/A: no browser surface. |
+| Browser final proof | no | Attach screenshot or exact browser verification caveat when browser proof applies | N/A. |
+| CI-controlled template output changed | no | Restore generated template output or record why it is intentionally kept | N/A: no `templates/**`. |
+| Package behavior or public API changed | yes | Add a changeset or record why no changeset applies | Test changesets created intentionally; no production package API change. |
+| Registry-only component work changed | no | Update registry changelog or record N/A | N/A. |
+| Docs or content changed | yes | Verify source-backed claims or record N/A | Internal plan only; no docs site content. |
+| High-risk mini gate | yes | Record realistic failure mode, proof plan, and chosen boundary | Fork Version PR testing uses `RELEASE_VERSION_PR_TEST=true`; npm publish is blocked by `PLATE_DISABLE_PUBLISH` for non-`udecode/plate`. |
+| Agent-native review for agent/tooling changes | no | Load agent-native reviewer or record N/A | N/A: no agent-owned files. |
+| Local install corruption suspected | yes | Run `pnpm run reinstall` once, rerun exact command | Initial `pnpm check` failed with known `Invalid hook call`; `pnpm run reinstall` then `pnpm check` passed on patch and minor branches. |
+| Autoreview for non-trivial implementation changes | no | Run autoreview or record N/A | N/A: small workflow test-harness fixes verified by focused tests and live fork Actions. |
+| PR create or update | yes | Run `check` before PR work and sync PR body | `pnpm check` passed on `codex/test-patch-version-pr` and `codex/test-minor-version-pr`; PRs #7/#8 created and merged. |
+| Task-style PR body verified | yes | Verify PR body | #7/#8 bodies preserved unchecked auto-release blocks and task proof table; Version PR bodies are Changesets-generated. |
+| PR proof image hosting | no | If PR body needs browser proof, record N/A | N/A. |
+| Tracker sync-back | no | Post concise tracker sync or record N/A | N/A: no tracker. |
+| Final handoff contract | yes | Fill final handoff fields below | Filled below. |
+| Final lint | yes | Run `pnpm lint:fix` or scoped equivalent | `pnpm lint:fix` passed for workflow fixes. |
+| Output budget discipline | yes | Verify no unbounded output streamed | One full `pnpm check` emitted large test output; later GitHub logs were capped with tails/JSON. |
+| Goal plan complete | yes | Run `node .agents/skills/autogoal/scripts/check-complete.mjs docs/plans/2026-06-15-test-fork-changeset-version-prs.md` | Running after this update. |
 
 Phase / pass table:
 | Phase | Status | Evidence | Next |
 |-------|--------|----------|------|
-| Intake and source read | in_progress | created plan | implementation |
-| Implementation | pending | | verification |
-| Verification | pending | | closeout |
-| PR / tracker sync | pending | | final response |
-| Closeout | pending | | final response |
+| Intake and source read | done | read workflows/scripts and current fork state | implementation |
+| Implementation | done | opened/merged source PRs; added fork test guard and branch-aware changeset status fix | verification |
+| Verification | done | main #9 and next #10 Version PRs generated and inspected | closeout |
+| PR / tracker sync | done | PRs #7/#8 merged; Version PRs #9/#10 left open | final response |
+| Closeout | done | plan/check-complete next | final response |
 
 Findings:
-- None yet.
+- Patch source PR #7 targeting `main` passed verify/retarget and created Version PR #9.
+- Minor source PR #8 initially targeted `main`, auto-retargeted to `next`, and created beta Version PR #10 after the `next` release fix.
+- Fork release job needed `RELEASE_VERSION_PR_TEST=true`; publish is blocked for non-`udecode/plate`.
+- `next` Version PRs in pre mode update `.changeset/pre.json` and leave the consumed changeset md file present.
 
 Decisions and tradeoffs:
-- None yet.
+- Keep npm publish untested; Version PR generation is enough for this fork test.
+- Add a safe fork test switch instead of renaming packages.
+- Use `changeset status --since=$GITHUB_REF_NAME` for release branch runs.
 
 Implementation notes:
-- None yet.
+- Added `.changeset/test-fork-patch-version-pr.md` in PR #7.
+- Added `.changeset/test-fork-minor-version-pr.md` in PR #8.
+- Added `RELEASE_VERSION_PR_TEST` workflow gate and `PLATE_DISABLE_PUBLISH` publish kill-switch.
+- Fixed `prepare-release-changesets.mjs` to use the release branch as Changesets status base.
 
 Review fixes:
-- None yet.
+- Fixed stale verify status on retargeted minor PR by pushing a synchronize commit after fork retarget; upstream App-token retarget should not need that workaround.
+- Fixed next release failure from Changesets defaulting status base to `main`.
 
 Error attempts:
 | Error / failed attempt | Count | Next different move | Resolution |
 |------------------------|-------|---------------------|------------|
-| None yet | 0 | | |
+| Ran `pnpm check` on `next` before creating source branch | 1 | Created dedicated patch/minor test branches and reran checks there | Corrected; both branch checks passed. |
+| `pnpm check` failed with React `Invalid hook call` / mixed install state | 1 | Ran `pnpm run reinstall` per repo rule | Reinstall fixed it; reruns passed. |
+| Minor PR verify failed before retarget | 1 | Pushed empty synchronize commit after retarget | Verify passed with base `next`. |
+| Fork release job skipped | 1 | Added `RELEASE_VERSION_PR_TEST` plus publish kill-switch and set fork variable | Release job ran in fork and created Version PRs. |
+| Next release failed because Changesets status used `main` base | 1 | Added branch-aware `--since=$GITHUB_REF_NAME` | Beta Version PR #10 was created. |
 
 Verification evidence:
-- Pending.
+- `pnpm check` passed on `codex/test-patch-version-pr`.
+- `pnpm check` passed on `codex/test-minor-version-pr`.
+- `node --test tooling/scripts/prepare-release-changesets.test.mjs tooling/scripts/release-workflow.test.mjs` passed with 13 tests.
+- `pnpm lint:fix` passed.
+- PR #9: `[Release] Version packages`, base `main`, bumps `@platejs/core` to `53.1.7`, deletes `.changeset/test-fork-patch-version-pr.md`.
+- PR #10: `[Release] Version packages (beta)`, base `next`, bumps `@platejs/core` to `54.0.0-beta.1`, updates `.changeset/pre.json` with `test-fork-minor-version-pr`.
 
 Final handoff contract:
-- PR line: pending
-- Issue / tracker line: pending
-- Confidence line: pending
+- PR line: source PRs #7/#8 merged; Version PRs #9/#10 open.
+- Issue / tracker line: N/A.
+- Confidence line: high.
 - Flow table:
-  - Reproduced: tests pending, browser pending
-  - Verified: tests pending, browser pending
-- Browser check: pending
-- Outcome: pending
-- Caveat: pending
+  - Reproduced: fork release skip, retarget stale verify, and next status-base failure.
+  - Verified: `pnpm check`, focused node tests, GitHub PR metadata, and Version PR diffs.
+- Browser check: N/A, no browser surface.
+- Outcome: fork can generate both main stable and next beta Version Packages PRs.
+- Caveat: Version PR checks show `action_required` because GitHub requires workflow approval for the generated release PR branches in this fork.
 - Design:
-  - Chosen boundary: pending
-  - Why not quick patch: pending
-  - Why not broader change: pending
-- Verified: pending
-- PR body verified: pending
+  - Chosen boundary: release workflow plus helper scripts, not package rename.
+  - Why not quick patch: real fork test needed workflow execution, not local-only changesets simulation.
+  - Why not broader change: npm publish is intentionally out of scope.
+- Verified: branch checks, focused script tests, and live fork Actions.
+- PR body verified: source PR bodies checked; Version PR bodies are Changesets-generated.
 
 Task-style PR body contract:
 - Preserve any existing `<!-- auto-release:start -->` block. If a changeset is
@@ -226,22 +244,29 @@ Task-style PR body contract:
   of that output.
 
 Final handoff / sync:
-- PR: pending
-- Issue / tracker: pending
-- Browser proof: pending
-- Caveats: pending
+- PR: #7 and #8 merged; #9 and #10 open.
+- Issue / tracker: N/A.
+- Browser proof: N/A.
+- Caveats: do not merge #9/#10 unless intentionally testing blocked publish path; fork publish is disabled.
 
 Timeline:
 - 2026-06-15T14:51:16.217Z Task goal plan created.
+- Opened patch test PR #7 and minor test PR #8.
+- Merged #7 into `main` and #8 into `next`.
+- Enabled fork Version PR testing with `RELEASE_VERSION_PR_TEST=true`.
+- Created Version PR #9 for `main`.
+- Fixed next release base detection and created beta Version PR #10.
 
 Reboot status:
 | Question | Answer |
 |----------|--------|
 | Where am I? | Intake and source read |
-| Where am I going? | Implementation, verification, PR/tracker sync, closeout |
-| What is the goal? | TODO: Fill from Objective |
+| Where am I? | Closeout |
+| Where am I going? | Final response |
+| What is the goal? | Verify fork patch/minor Version PR behavior |
 | What have I learned? | See Findings |
 | What have I done? | See Timeline |
 
 Open risks:
-- Pending.
+- Version PR checks are `action_required` until approved in GitHub UI.
+- Merging #9/#10 would not publish in fork because `PLATE_DISABLE_PUBLISH` blocks non-`udecode/plate`, but there is no need to merge them for this test.
