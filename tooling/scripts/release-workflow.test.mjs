@@ -8,6 +8,7 @@ import {
   buildPromotePullRequest,
   formatMainToNextSyncResolutionReport,
   getMainToNextChangelogResolution,
+  getMainToNextSyncMetadataFiles,
   getStableVersion,
   mainToNextSyncBranch,
   mergeChangelogsForMainToNextSync,
@@ -403,6 +404,33 @@ test('main to next sync verifier checks package, pre-state, and changelog output
         theirs: theirsChangelog,
       }),
     /still contains merge conflict markers/
+  );
+});
+
+test('main to next sync verifier scopes metadata files to synced changes', () => {
+  assert.deepEqual(
+    getMainToNextSyncMetadataFiles({
+      mainChangedFiles: [
+        '.github/workflows/verify-main-to-next-sync.yml',
+        'tooling/scripts/release-branch-prs.mjs',
+      ],
+      resolvedChangedFiles: [],
+    }),
+    []
+  );
+  assert.deepEqual(
+    getMainToNextSyncMetadataFiles({
+      mainChangedFiles: [
+        'packages/basic-nodes/CHANGELOG.md',
+        'packages/basic-nodes/package.json',
+      ],
+      resolvedChangedFiles: ['packages/core/CHANGELOG.md'],
+    }),
+    [
+      'packages/basic-nodes/CHANGELOG.md',
+      'packages/basic-nodes/package.json',
+      'packages/core/CHANGELOG.md',
+    ]
   );
 });
 
