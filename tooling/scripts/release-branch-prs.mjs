@@ -539,6 +539,23 @@ function listGitDiffFiles(from, to) {
   return output.split(newlinePattern).filter(Boolean);
 }
 
+function getGitMergeBase(left, right) {
+  return runGit(['merge-base', left, right], { capture: true });
+}
+
+export function getMainToNextSyncMetadataFiles({
+  mainChangedFiles,
+  resolvedChangedFiles,
+}) {
+  return [
+    ...new Set(
+      [...mainChangedFiles, ...resolvedChangedFiles].filter(
+        isMainToNextMetadataFile
+      )
+    ),
+  ].sort();
+}
+
 function tryReadGitCommitFile(commit, file) {
   const result = runGitProcess(['show', `${commit}:${file}`]);
 
@@ -636,15 +653,11 @@ export function verifyMainToNextSyncMergeCommit({ commit = 'HEAD' } = {}) {
   }
 
   const [nextParent, mainParent] = parents;
-  const files = [
-    ...new Set(
-      [
-        ...listGitDiffFiles(nextParent, mainParent),
-        ...listGitDiffFiles(nextParent, resolvedCommit),
-        ...listGitDiffFiles(mainParent, resolvedCommit),
-      ].filter(isMainToNextMetadataFile)
-    ),
-  ].sort();
+  const mergeBase = getGitMergeBase(nextParent, mainParent);
+  const files = getMainToNextSyncMetadataFiles({
+    mainChangedFiles: listGitDiffFiles(mergeBase, mainParent),
+    resolvedChangedFiles: listGitDiffFiles(nextParent, resolvedCommit),
+  });
   const results = [];
 
   for (const file of files) {
@@ -683,6 +696,7 @@ export function verifyMainToNextSyncMergeCommit({ commit = 'HEAD' } = {}) {
   return {
     files,
     mainParent,
+    mergeBase,
     nextParent,
     resolvedCommit,
     results,
