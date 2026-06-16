@@ -1,5 +1,7 @@
 # @platejs/playwright
 
+## 54.0.0-beta.1
+
 ## 53.0.0
 
 ## 52.3.10

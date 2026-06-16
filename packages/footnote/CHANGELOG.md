@@ -1,5 +1,7 @@
 # @platejs/footnote
 
+## 54.0.0-beta.1
+
 ## 53.0.0
 
 ### Minor Changes
