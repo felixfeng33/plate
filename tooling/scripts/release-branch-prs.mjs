@@ -12,6 +12,8 @@ const newlinePattern = /\r?\n/;
 const shellSafeArgPattern = /^[A-Za-z0-9_./:=@-]+$/;
 const stableVersionPattern = /^\d+\.\d+\.\d+$/;
 const semverPattern = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
+const conflictMarkerPattern = /^(?:<<<<<<<|=======|>>>>>>>)(?:\s|$)/m;
+const whitespacePattern = /\s+/;
 
 export function getStableVersion(version) {
   const stableVersion = String(version ?? '').split('-')[0];
@@ -40,21 +42,93 @@ export function buildPromotePullRequest({ version }) {
   };
 }
 
-export function buildMainToNextSyncPullRequest() {
+export function buildMainToNextSyncPullRequest({ resolutionReport } = {}) {
+  const body = [
+    'Brings stable fixes from `main` into the beta branch.',
+    '',
+    'This PR is prepared from `next` by merging `main` into `sync/main-to-next` first. Release metadata conflicts are resolved automatically before the PR opens.',
+    '',
+    '**Merge with `Create a merge commit`**. Do not squash or rebase; this preserves the stable fix commits before the next beta cut.',
+    '',
+    'If this PR still has conflicts, they are real source conflicts. Package versions, beta pre-release state, and changelog section ordering are handled by automation.',
+  ];
+
+  if (resolutionReport) {
+    body.push('', formatMainToNextSyncResolutionReport(resolutionReport));
+  }
+
   return {
     base: 'next',
-    body: [
-      'Brings stable fixes from `main` into the beta branch.',
-      '',
-      'This PR is prepared from `next` by merging `main` into `sync/main-to-next` first. Release metadata conflicts are resolved automatically before the PR opens.',
-      '',
-      '**Merge with `Create a merge commit`**. Do not squash or rebase; this preserves the stable fix commits before the next beta cut.',
-      '',
-      'If this PR still has conflicts, they are real source conflicts. Package versions, beta pre-release state, and changelog section ordering are handled by automation.',
-    ].join('\n'),
+    body: body.join('\n'),
     head: mainToNextSyncBranch,
     title: 'chore: sync main to next [skip release]',
   };
+}
+
+function formatVersionList(versions) {
+  return versions.map((version) => `\`${version}\``).join(', ');
+}
+
+export function formatMainToNextSyncResolutionReport(report) {
+  const decisions = [];
+
+  for (const item of report.packageManifests ?? []) {
+    const name = item.packageName ? ` (${item.packageName})` : '';
+
+    decisions.push(
+      `- \`${item.file}\`${name}: kept next/beta version \`${item.keptVersion}\` over main/stable \`${item.mainVersion}\`.`
+    );
+  }
+
+  for (const item of report.preJsonFiles ?? []) {
+    decisions.push(`- \`${item.file}\`: kept next beta pre-release state.`);
+  }
+
+  for (const item of report.changelogs ?? []) {
+    const pieces = [];
+
+    if (item.insertedStableVersions.length > 0) {
+      pieces.push(
+        `inserted stable sections ${formatVersionList(item.insertedStableVersions)}`
+      );
+    }
+
+    if (item.refreshedStableVersions.length > 0) {
+      pieces.push(
+        `refreshed stable sections ${formatVersionList(item.refreshedStableVersions)} from main`
+      );
+    }
+
+    decisions.push(
+      `- \`${item.file}\`: ${pieces.length > 0 ? pieces.join('; ') : 'kept existing changelog order'}.`
+    );
+  }
+
+  if (decisions.length === 0) {
+    decisions.push(
+      '- No release metadata conflicts required automatic resolution.'
+    );
+  }
+
+  const checks =
+    report.checks && report.checks.length > 0
+      ? report.checks
+      : [
+          'no conflict markers in resolved release metadata',
+          'next/beta package versions preserved',
+          'stable changelog sections inserted deterministically',
+          'package manifests checked for unexpected third-state edits',
+        ];
+
+  return [
+    '## Automated release metadata resolution',
+    '',
+    ...decisions,
+    '',
+    '### Verification',
+    '',
+    ...checks.map((check) => `- ${check}`),
+  ].join('\n');
 }
 
 function run(command, args, { allowFailure = false, capture = false } = {}) {
@@ -110,6 +184,20 @@ function runGit(
   return run('git', args, { allowFailure, capture });
 }
 
+function runGitProcess(args) {
+  const result = spawnSync('git', args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return result;
+}
+
 function requireRepository(env) {
   const repository = env.GITHUB_REPOSITORY;
 
@@ -131,6 +219,16 @@ function writeRepoFile(file, content) {
   );
 }
 
+function normalizeText(content) {
+  return `${String(content).replace(/\r\n/g, '\n').trimEnd()}\n`;
+}
+
+function assertNoConflictMarkers(file, content) {
+  if (conflictMarkerPattern.test(content)) {
+    throw new Error(`${file} still contains merge conflict markers.`);
+  }
+}
+
 function getUnmergedFiles() {
   const output = runGit(['diff', '--name-only', '--diff-filter=U'], {
     capture: true,
@@ -145,6 +243,14 @@ function isPackageManifest(file) {
 
 function isChangelog(file) {
   return file.endsWith('/CHANGELOG.md') || file === 'CHANGELOG.md';
+}
+
+function isMainToNextMetadataFile(file) {
+  return (
+    isPackageManifest(file) ||
+    isChangelog(file) ||
+    file === '.changeset/pre.json'
+  );
 }
 
 function normalizePackageForVersionOnlyCompare(packageJson) {
@@ -175,6 +281,18 @@ export function resolvePackageManifestForMainToNextSync({ ours, theirs }) {
   }
 
   return `${JSON.stringify(oursJson, null, 2)}\n`;
+}
+
+function recordPackageManifestResolution({ file, ours, report, theirs }) {
+  const oursJson = JSON.parse(ours);
+  const theirsJson = JSON.parse(theirs);
+
+  report.packageManifests.push({
+    file,
+    keptVersion: oursJson.version,
+    mainVersion: theirsJson.version,
+    packageName: oursJson.name,
+  });
 }
 
 function parseSemver(version) {
@@ -249,7 +367,7 @@ function collectStableChangelogInsertions({ oursVersions, theirsSections }) {
   };
 }
 
-export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
+export function getMainToNextChangelogResolution({ ours, theirs }) {
   const oursChangelog = parseChangelog(ours);
   const theirsChangelog = parseChangelog(theirs);
   const oursVersions = new Set(
@@ -263,6 +381,8 @@ export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
     theirsSections: theirsChangelog.sections,
   });
   const sections = [];
+  const insertedStableVersions = [];
+  const refreshedStableVersions = [];
 
   for (const section of oursChangelog.sections) {
     const sectionsToInsert = stableInsertions.sectionsByAnchorVersion.get(
@@ -272,6 +392,17 @@ export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
 
     if (sectionsToInsert) {
       sections.push(...sectionsToInsert);
+      insertedStableVersions.push(
+        ...sectionsToInsert.map((sectionToInsert) => sectionToInsert.version)
+      );
+    }
+
+    if (
+      theirsSection &&
+      isStableChangelogSection(section) &&
+      theirsSection.raw !== section.raw
+    ) {
+      refreshedStableVersions.push(section.version);
     }
 
     sections.push(
@@ -282,39 +413,70 @@ export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
   }
 
   sections.push(...stableInsertions.trailingSections);
+  insertedStableVersions.push(
+    ...stableInsertions.trailingSections.map((section) => section.version)
+  );
 
   const header = oursChangelog.header || theirsChangelog.header;
 
-  return `${header}\n\n${sections.map((section) => section.raw).join('\n\n')}\n`;
+  return {
+    content: `${header}\n\n${sections.map((section) => section.raw).join('\n\n')}\n`,
+    insertedStableVersions,
+    refreshedStableVersions,
+  };
 }
 
-function resolveMainToNextMetadataConflict(file) {
+export function mergeChangelogsForMainToNextSync({ ours, theirs }) {
+  return getMainToNextChangelogResolution({ ours, theirs }).content;
+}
+
+function createMainToNextResolutionReport() {
+  return {
+    changelogs: [],
+    checks: [
+      'no conflict markers in resolved release metadata',
+      'next/beta package versions preserved',
+      'stable changelog sections inserted deterministically',
+      'package manifests checked for unexpected third-state edits',
+    ],
+    packageManifests: [],
+    preJsonFiles: [],
+  };
+}
+
+function resolveMainToNextMetadataConflict(file, report) {
   if (isPackageManifest(file)) {
+    const ours = readGitStage(2, file);
+    const theirs = readGitStage(3, file);
+
     writeRepoFile(
       file,
-      resolvePackageManifestForMainToNextSync({
-        ours: readGitStage(2, file),
-        theirs: readGitStage(3, file),
-      })
+      resolvePackageManifestForMainToNextSync({ ours, theirs })
     );
+    recordPackageManifestResolution({ file, ours, report, theirs });
     runGit(['add', file]);
     return true;
   }
 
   if (file === '.changeset/pre.json') {
     writeRepoFile(file, readGitStage(2, file));
+    report.preJsonFiles.push({ file });
     runGit(['add', file]);
     return true;
   }
 
   if (isChangelog(file)) {
-    writeRepoFile(
+    const resolution = getMainToNextChangelogResolution({
+      ours: readGitStage(2, file),
+      theirs: readGitStage(3, file),
+    });
+
+    writeRepoFile(file, resolution.content);
+    report.changelogs.push({
       file,
-      mergeChangelogsForMainToNextSync({
-        ours: readGitStage(2, file),
-        theirs: readGitStage(3, file),
-      })
-    );
+      insertedStableVersions: resolution.insertedStableVersions,
+      refreshedStableVersions: resolution.refreshedStableVersions,
+    });
     runGit(['add', file]);
     return true;
   }
@@ -323,12 +485,13 @@ function resolveMainToNextMetadataConflict(file) {
 }
 
 function resolveMainToNextMetadataConflicts() {
+  const report = createMainToNextResolutionReport();
   const unmergedFiles = getUnmergedFiles();
   const unresolvedFiles = [];
 
   for (const file of unmergedFiles) {
     try {
-      if (!resolveMainToNextMetadataConflict(file)) {
+      if (!resolveMainToNextMetadataConflict(file, report)) {
         unresolvedFiles.push(file);
       }
     } catch (error) {
@@ -355,6 +518,175 @@ function resolveMainToNextMetadataConflicts() {
       ].join('\n')
     );
   }
+
+  return report;
+}
+
+function getGitCommitParents(commit) {
+  const line = runGit(['rev-list', '--parents', '-n', '1', commit], {
+    capture: true,
+  });
+  const [resolvedCommit, ...parents] = line
+    .split(whitespacePattern)
+    .filter(Boolean);
+
+  return { parents, resolvedCommit };
+}
+
+function listGitDiffFiles(from, to) {
+  const output = runGit(['diff', '--name-only', from, to], { capture: true });
+
+  return output.split(newlinePattern).filter(Boolean);
+}
+
+function tryReadGitCommitFile(commit, file) {
+  const result = runGitProcess(['show', `${commit}:${file}`]);
+
+  if (result.status !== 0) {
+    return null;
+  }
+
+  return result.stdout;
+}
+
+function isPrereleaseVersion(version) {
+  return !!parseSemver(version)?.pre;
+}
+
+export function verifyMainToNextResolvedFile({ file, ours, resolved, theirs }) {
+  assertNoConflictMarkers(file, resolved);
+
+  if (isPackageManifest(file)) {
+    const oursJson = JSON.parse(ours);
+    const resolvedJson = JSON.parse(resolved);
+    const theirsJson = JSON.parse(theirs);
+
+    if (
+      isPrereleaseVersion(oursJson.version) &&
+      resolvedJson.version !== oursJson.version
+    ) {
+      throw new Error(
+        `${file} downgraded next/beta version ${oursJson.version} to ${resolvedJson.version}.`
+      );
+    }
+
+    const normalizedResolved =
+      normalizePackageForVersionOnlyCompare(resolvedJson);
+    const normalizedOurs = normalizePackageForVersionOnlyCompare(oursJson);
+    const normalizedTheirs = normalizePackageForVersionOnlyCompare(theirsJson);
+
+    if (
+      normalizedResolved !== normalizedOurs &&
+      normalizedResolved !== normalizedTheirs
+    ) {
+      throw new Error(
+        `${file} contains package manifest fields that match neither next nor main.`
+      );
+    }
+
+    return {
+      file,
+      message: `kept package version ${resolvedJson.version}`,
+      type: 'package-manifest',
+    };
+  }
+
+  if (file === '.changeset/pre.json') {
+    if (normalizeText(resolved) !== normalizeText(ours)) {
+      throw new Error(`${file} did not keep next beta pre-release state.`);
+    }
+
+    return {
+      file,
+      message: 'kept next beta pre-release state',
+      type: 'pre-json',
+    };
+  }
+
+  if (isChangelog(file)) {
+    const expected = getMainToNextChangelogResolution({ ours, theirs });
+
+    if (normalizeText(resolved) !== normalizeText(expected.content)) {
+      throw new Error(
+        `${file} does not match the deterministic main-to-next changelog merge.`
+      );
+    }
+
+    return {
+      file,
+      insertedStableVersions: expected.insertedStableVersions,
+      message:
+        expected.insertedStableVersions.length > 0
+          ? `inserted stable sections ${expected.insertedStableVersions.join(', ')}`
+          : 'verified changelog order',
+      type: 'changelog',
+    };
+  }
+
+  throw new Error(`${file} is not a supported main-to-next metadata file.`);
+}
+
+export function verifyMainToNextSyncMergeCommit({ commit = 'HEAD' } = {}) {
+  const { parents, resolvedCommit } = getGitCommitParents(commit);
+
+  if (parents.length < 2) {
+    throw new Error(
+      `${resolvedCommit} is not a merge commit; sync/main-to-next must preserve the main merge parent.`
+    );
+  }
+
+  const [nextParent, mainParent] = parents;
+  const files = [
+    ...new Set(
+      [
+        ...listGitDiffFiles(nextParent, mainParent),
+        ...listGitDiffFiles(nextParent, resolvedCommit),
+        ...listGitDiffFiles(mainParent, resolvedCommit),
+      ].filter(isMainToNextMetadataFile)
+    ),
+  ].sort();
+  const results = [];
+
+  for (const file of files) {
+    const ours = tryReadGitCommitFile(nextParent, file);
+    const theirs = tryReadGitCommitFile(mainParent, file);
+    const resolved = tryReadGitCommitFile(resolvedCommit, file);
+
+    if (resolved) {
+      assertNoConflictMarkers(file, resolved);
+    }
+
+    if (!ours || !theirs || !resolved) {
+      continue;
+    }
+
+    results.push(
+      verifyMainToNextResolvedFile({
+        file,
+        ours,
+        resolved,
+        theirs,
+      })
+    );
+  }
+
+  console.log('Main -> next sync metadata verification passed.');
+
+  if (results.length === 0) {
+    console.log('- No shared release metadata files needed verification.');
+  } else {
+    for (const result of results) {
+      console.log(`- ${result.file}: ${result.message}`);
+    }
+  }
+
+  return {
+    files,
+    mainParent,
+    nextParent,
+    resolvedCommit,
+    results,
+  };
 }
 
 export function createOrUpdatePromotePullRequest({
@@ -430,7 +762,6 @@ export function createOrUpdateMainToNextSyncPullRequest({
   env = process.env,
 } = {}) {
   const repository = requireRepository(env);
-  const pullRequest = buildMainToNextSyncPullRequest();
 
   runGit(['fetch', 'origin', 'main', 'next'], { dryRun });
 
@@ -467,9 +798,10 @@ export function createOrUpdateMainToNextSyncPullRequest({
     dryRun,
   });
 
-  if (!dryRun) {
-    resolveMainToNextMetadataConflicts();
-  }
+  const resolutionReport = dryRun
+    ? createMainToNextResolutionReport()
+    : resolveMainToNextMetadataConflicts();
+  const pullRequest = buildMainToNextSyncPullRequest({ resolutionReport });
 
   runGit(
     [
@@ -581,9 +913,13 @@ if (isMainModule()) {
       });
     } else if (command === 'sync-main-to-next') {
       createOrUpdateMainToNextSyncPullRequest({ dryRun });
+    } else if (command === 'verify-main-to-next-sync') {
+      verifyMainToNextSyncMergeCommit({
+        commit: readOption(args, '--commit') ?? 'HEAD',
+      });
     } else {
       throw new Error(
-        'Usage: release-branch-prs.mjs <promote --version x.y.z | sync-main-to-next> [--dry-run]'
+        'Usage: release-branch-prs.mjs <promote --version x.y.z | sync-main-to-next | verify-main-to-next-sync> [--dry-run]'
       );
     }
   } catch (error) {

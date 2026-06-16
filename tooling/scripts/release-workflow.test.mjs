@@ -6,10 +6,13 @@ import { validateBetaPreState } from './guard-beta-pre-release.mjs';
 import {
   buildMainToNextSyncPullRequest,
   buildPromotePullRequest,
+  formatMainToNextSyncResolutionReport,
+  getMainToNextChangelogResolution,
   getStableVersion,
   mainToNextSyncBranch,
   mergeChangelogsForMainToNextSync,
   resolvePackageManifestForMainToNextSync,
+  verifyMainToNextResolvedFile,
 } from './release-branch-prs.mjs';
 import {
   getReleasePlan,
@@ -31,6 +34,10 @@ const autoRetargetWorkflowPath = new URL(
 );
 const verifyChangesetsWorkflowPath = new URL(
   '../../.github/workflows/verify-changesets.yml',
+  import.meta.url
+);
+const verifyMainToNextSyncWorkflowPath = new URL(
+  '../../.github/workflows/verify-main-to-next-sync.yml',
   import.meta.url
 );
 const packageJsonPath = new URL('../../package.json', import.meta.url);
@@ -186,6 +193,42 @@ test('release branch PR helpers build promote and sync PRs', () => {
   assert.match(syncPullRequest.body, /Release metadata conflicts/);
 });
 
+test('main to next sync PR reports automated release metadata resolution', () => {
+  const report = {
+    changelogs: [
+      {
+        file: 'packages/core/CHANGELOG.md',
+        insertedStableVersions: ['53.1.8'],
+        refreshedStableVersions: ['53.1.2'],
+      },
+    ],
+    checks: ['verified by test'],
+    packageManifests: [
+      {
+        file: 'packages/core/package.json',
+        keptVersion: '54.0.0-beta.1',
+        mainVersion: '53.1.8',
+        packageName: '@platejs/core',
+      },
+    ],
+    preJsonFiles: [{ file: '.changeset/pre.json' }],
+  };
+  const body = buildMainToNextSyncPullRequest({
+    resolutionReport: report,
+  }).body;
+  const formatted = formatMainToNextSyncResolutionReport(report);
+
+  assert.match(body, /Automated release metadata resolution/);
+  assert.match(
+    body,
+    /kept next\/beta version `54\.0\.0-beta\.1` over main\/stable `53\.1\.8`/
+  );
+  assert.match(body, /inserted stable sections `53\.1\.8`/);
+  assert.match(body, /refreshed stable sections `53\.1\.2` from main/);
+  assert.match(body, /kept next beta pre-release state/);
+  assert.match(formatted, /verified by test/);
+});
+
 test('main to next sync keeps beta package versions', () => {
   const resolved = resolvePackageManifestForMainToNextSync({
     ours: JSON.stringify({
@@ -213,6 +256,153 @@ test('main to next sync keeps beta package versions', () => {
           '{"name":"@platejs/core","description":"changed","version":"53.1.8"}',
       }),
     /changed fields other than version/
+  );
+});
+
+test('main to next sync verifier checks package, pre-state, and changelog output', () => {
+  const nextPackage = JSON.stringify({
+    description: 'test',
+    name: '@platejs/core',
+    version: '54.0.0-beta.1',
+  });
+  const mainPackage = JSON.stringify({
+    description: 'test',
+    name: '@platejs/core',
+    version: '53.1.8',
+  });
+
+  assert.deepEqual(
+    verifyMainToNextResolvedFile({
+      file: 'packages/core/package.json',
+      ours: nextPackage,
+      resolved: nextPackage,
+      theirs: mainPackage,
+    }),
+    {
+      file: 'packages/core/package.json',
+      message: 'kept package version 54.0.0-beta.1',
+      type: 'package-manifest',
+    }
+  );
+  assert.throws(
+    () =>
+      verifyMainToNextResolvedFile({
+        file: 'packages/core/package.json',
+        ours: nextPackage,
+        resolved: mainPackage,
+        theirs: mainPackage,
+      }),
+    /downgraded next\/beta version/
+  );
+  assert.throws(
+    () =>
+      verifyMainToNextResolvedFile({
+        file: 'packages/core/package.json',
+        ours: nextPackage,
+        resolved: JSON.stringify({
+          description: 'third state',
+          name: '@platejs/core',
+          version: '54.0.0-beta.1',
+        }),
+        theirs: mainPackage,
+      }),
+    /match neither next nor main/
+  );
+
+  assert.deepEqual(
+    verifyMainToNextResolvedFile({
+      file: '.changeset/pre.json',
+      ours: '{"mode":"pre","tag":"beta"}\n',
+      resolved: '{"mode":"pre","tag":"beta"}\n',
+      theirs: '{}\n',
+    }),
+    {
+      file: '.changeset/pre.json',
+      message: 'kept next beta pre-release state',
+      type: 'pre-json',
+    }
+  );
+  assert.throws(
+    () =>
+      verifyMainToNextResolvedFile({
+        file: '.changeset/pre.json',
+        ours: '{"mode":"pre","tag":"beta"}\n',
+        resolved: '{}\n',
+        theirs: '{}\n',
+      }),
+    /did not keep next beta pre-release state/
+  );
+
+  const oursChangelog = [
+    '# @platejs/core',
+    '',
+    '## 54.0.0-beta.1',
+    '',
+    '### Minor Changes',
+    '',
+    '- Beta minor.',
+    '',
+    '## 53.1.2',
+    '',
+    '### Patch Changes',
+    '',
+    '- Existing stable patch.',
+    '',
+  ].join('\n');
+  const theirsChangelog = [
+    '# @platejs/core',
+    '',
+    '## 53.1.8',
+    '',
+    '### Patch Changes',
+    '',
+    '- Main patch.',
+    '',
+    '## 53.1.2',
+    '',
+    '### Patch Changes',
+    '',
+    '- Existing stable patch from main.',
+    '',
+  ].join('\n');
+  const changelogResolution = getMainToNextChangelogResolution({
+    ours: oursChangelog,
+    theirs: theirsChangelog,
+  });
+
+  assert.deepEqual(
+    verifyMainToNextResolvedFile({
+      file: 'packages/core/CHANGELOG.md',
+      ours: oursChangelog,
+      resolved: changelogResolution.content,
+      theirs: theirsChangelog,
+    }),
+    {
+      file: 'packages/core/CHANGELOG.md',
+      insertedStableVersions: ['53.1.8'],
+      message: 'inserted stable sections 53.1.8',
+      type: 'changelog',
+    }
+  );
+  assert.throws(
+    () =>
+      verifyMainToNextResolvedFile({
+        file: 'packages/core/CHANGELOG.md',
+        ours: oursChangelog,
+        resolved: oursChangelog,
+        theirs: theirsChangelog,
+      }),
+    /does not match the deterministic main-to-next changelog merge/
+  );
+  assert.throws(
+    () =>
+      verifyMainToNextResolvedFile({
+        file: 'packages/core/CHANGELOG.md',
+        ours: oursChangelog,
+        resolved: `${changelogResolution.content}\n=======\n`,
+        theirs: theirsChangelog,
+      }),
+    /still contains merge conflict markers/
   );
 });
 
@@ -495,6 +685,27 @@ test('verify changesets workflow blocks non-patch releases on main', async () =>
     /releaseType === 'minor' \|\| releaseType === 'major'/
   );
   assert.match(workflow, /Only patch bumps are allowed/);
+});
+
+test('verify main-to-next sync workflow checks only sync PR metadata', async () => {
+  const workflow = await readFile(verifyMainToNextSyncWorkflowPath, 'utf8');
+
+  assert.match(workflow, /name:\s*Verify main-to-next sync/);
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /branches:\s*\n\s*-\s*next/);
+  assert.match(
+    workflow,
+    /github\.event\.pull_request\.head\.ref == 'sync\/main-to-next'/
+  );
+  assert.match(
+    workflow,
+    /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \}\}/
+  );
+  assert.match(workflow, /fetch-depth:\s*0/);
+  assert.match(
+    workflow,
+    /node tooling\/scripts\/release-branch-prs\.mjs verify-main-to-next-sync/
+  );
 });
 
 test('package scripts expose CI version and release commands only', async () => {
