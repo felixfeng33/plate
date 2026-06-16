@@ -1,5 +1,11 @@
 # @platejs/basic-nodes
 
+## 53.2.0-beta.0
+
+### Minor Changes
+
+- [`72bacca`](https://github.com/udecode/plate/commit/72bacca6530567fcefecd79859aafd87179aa188) by [@felixfeng33](https://github.com/felixfeng33) – Test minor release PR routing.
+
 ## 53.0.0
 
 ### Major Changes
