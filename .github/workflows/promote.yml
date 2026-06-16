@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Test promotion without committing, pushing, or creating a PR.'
+        description: 'Test promotion without committing, pushing, or creating a PR. Set false only when ready to push next and create the promote PR.'
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions: {}
@@ -121,7 +121,7 @@ jobs:
             echo "- Dry run: \`${DRY_RUN}\`"
             echo "- Next: review and merge the promote PR with **Create a merge commit**."
             echo ""
-            echo "After the promote PR lands on main and the main-to-next sync PR lands, re-enter beta on next:"
+            echo "After the promote PR lands on main, merge the generated main-to-next sync PR first. Even an empty diff PR can be a valid history sync. Then re-enter beta on next:"
             echo '```bash'
             echo "pnpm changeset pre enter beta"
             echo "git add .changeset/pre.json"

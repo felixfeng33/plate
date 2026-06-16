@@ -151,6 +151,8 @@ test('promote workflow exits beta mode and creates next to main PR', async () =>
 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /dry_run:/);
+  assert.match(workflow, /default:\s*true/);
+  assert.match(workflow, /Set false only when ready to push next/);
   assert.match(workflow, /if:\s*github\.ref == 'refs\/heads\/next'/);
   assert.match(workflow, /ref:\s*next/);
   assert.match(workflow, /pnpm changeset pre exit/);
@@ -180,6 +182,14 @@ test('release branch PR helpers build promote and sync PRs', () => {
   assert.equal(promotePullRequest.title, 'chore: promote v54.0.0 to stable');
   assert.match(promotePullRequest.body, /publishes Plate packages to npm/);
   assert.match(promotePullRequest.body, /Create a merge commit/);
+  assert.match(promotePullRequest.body, /not a style preference/);
+  assert.match(promotePullRequest.body, /Wait for `release\.yml` on `main`/);
+  assert.match(
+    promotePullRequest.body,
+    /Merge the generated `main -> next` sync PR/
+  );
+  assert.match(promotePullRequest.body, /empty file diff can be correct/);
+  assert.match(promotePullRequest.body, /pnpm changeset pre enter beta/);
 
   const syncPullRequest = buildMainToNextSyncPullRequest();
 
@@ -192,6 +202,12 @@ test('release branch PR helpers build promote and sync PRs', () => {
   assert.match(syncPullRequest.body, /stable fixes from `main`/);
   assert.match(syncPullRequest.body, /sync\/main-to-next/);
   assert.match(syncPullRequest.body, /Release metadata conflicts/);
+  assert.match(syncPullRequest.body, /not a style preference/);
+  assert.match(syncPullRequest.body, /empty file diff can still be correct/);
+  assert.match(
+    syncPullRequest.body,
+    /carries the `main` merge commit back into `next`/
+  );
 });
 
 test('main to next sync PR reports automated release metadata resolution', () => {
