@@ -59,7 +59,5 @@
     "@platejs/utils": "53.1.2",
     "@platejs/yjs": "53.0.0"
   },
-  "changesets": [
-    "test-minor-release-flow"
-  ]
+  "changesets": ["test-minor-release-flow"]
 }
