@@ -6,6 +6,12 @@
 
 - [`adf9faa`](https://github.com/udecode/plate/commit/adf9faa06f96e83a08efc683ab8ffc02fff1201b) by [@felixfeng33](https://github.com/felixfeng33) – Test core major release PR routing.
 
+## 53.1.10
+
+### Patch Changes
+
+- [`8d507cd`](https://github.com/udecode/plate/commit/8d507cd3b112bfac6894f41d0907858b30265549) by [@felixfeng33](https://github.com/felixfeng33) – Test post-verifier main-to-next sync patch flow.
+
 ## 53.1.8
 
 ### Patch Changes
