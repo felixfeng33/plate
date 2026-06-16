@@ -1,5 +1,11 @@
 # @platejs/core
 
+## 53.1.8
+
+### Patch Changes
+
+- [`4bddd42`](https://github.com/udecode/plate/commit/4bddd4204c350ad376476fc10e3c5de72fe469d6) by [@felixfeng33](https://github.com/felixfeng33) – Test second patch release PR routing.
+
 ## 53.1.7
 
 ### Patch Changes
