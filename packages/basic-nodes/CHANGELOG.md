@@ -1,5 +1,7 @@
 # @platejs/basic-nodes
 
+## 54.0.0-beta.1
+
 ## 53.2.0-beta.0
 
 ### Minor Changes

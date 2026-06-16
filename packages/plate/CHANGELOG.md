@@ -1,5 +1,7 @@
 # platejs
 
+## 54.0.0-beta.1
+
 ## 53.1.2
 
 ### Patch Changes
