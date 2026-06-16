@@ -6,6 +6,12 @@
 
 - [`72bacca`](https://github.com/udecode/plate/commit/72bacca6530567fcefecd79859aafd87179aa188) by [@felixfeng33](https://github.com/felixfeng33) – Test minor release PR routing.
 
+## 53.1.9
+
+### Patch Changes
+
+- [`f00bf8d`](https://github.com/udecode/plate/commit/f00bf8d8f6fe0b77aa6cc56cf159bc22df60106f) by [@felixfeng33](https://github.com/felixfeng33) – Test basic-nodes patch release conflict sync.
+
 ## 53.0.0
 
 ### Major Changes
