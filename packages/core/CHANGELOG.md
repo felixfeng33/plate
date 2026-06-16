@@ -1,5 +1,17 @@
 # @platejs/core
 
+## 54.0.0
+
+### Major Changes
+
+- [`adf9faa`](https://github.com/udecode/plate/commit/adf9faa06f96e83a08efc683ab8ffc02fff1201b) by [@felixfeng33](https://github.com/felixfeng33) – Test core major release PR routing.
+
+## 54.0.0-beta.1
+
+### Major Changes
+
+- [`adf9faa`](https://github.com/udecode/plate/commit/adf9faa06f96e83a08efc683ab8ffc02fff1201b) by [@felixfeng33](https://github.com/felixfeng33) – Test core major release PR routing.
+
 ## 53.1.10
 
 ### Patch Changes

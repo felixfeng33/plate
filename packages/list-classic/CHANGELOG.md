@@ -1,5 +1,9 @@
 # @platejs/list-classic
 
+## 54.0.0
+
+## 54.0.0-beta.1
+
 ## 53.0.0
 
 ### Patch Changes

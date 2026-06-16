@@ -1,5 +1,7 @@
 # @udecode/react-hotkeys
 
+## 52.0.12
+
 ## 52.0.11
 
 ### Patch Changes

@@ -1,5 +1,9 @@
 # @platejs/markdown
 
+## 54.0.0
+
+## 54.0.0-beta.1
+
 ## 53.1.5
 
 ### Patch Changes

@@ -1,5 +1,7 @@
 # @udecode/slate
 
+## 53.0.8
+
 ## 53.0.7
 
 ### Patch Changes

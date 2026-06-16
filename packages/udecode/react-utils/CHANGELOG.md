@@ -1,5 +1,7 @@
 # @udecode/react-utils
 
+## 52.3.5
+
 ## 52.3.4
 
 ### Patch Changes
